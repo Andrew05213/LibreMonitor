@@ -1,0 +1,45 @@
+{
+  "version": "0.1.0-dev",
+  "package": "org.libremonitor.app",
+  "min_sdk": 26,
+  "target_sdk": 35,
+  "build_tasks": [
+    ":core:test",
+    ":app:assembleDebug",
+    ":app:lintDebug"
+  ],
+  "build_success": true,
+  "unit_tests": 24,
+  "unit_failures": 0,
+  "unit_errors": 0,
+  "lint": {
+    "Fatal": 0,
+    "Error": 0,
+    "Warning": 7,
+    "Information": 0
+  },
+  "lint_warning_scope": "Pinned dependencies have newer versions; no baseline or suppressions added",
+  "apk_bytes": 9322845,
+  "apk_sha256": "e9e54ccc252f2290cf1c3bd9d0c13b6664e2915c788ce5c796e9096f46fbf48c",
+  "apk_signature": "apksigner verify passed; APK Signature Scheme v2",
+  "requested_permissions": [
+    "android.permission.SYSTEM_ALERT_WINDOW",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+    "org.libremonitor.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+  ],
+  "forbidden_permission_audit_passed": true,
+  "license_assets_present": true,
+  "apk_installed_or_launched": false,
+  "device_history_overlay_and_export_smoke_tests_run": false,
+  "ci_configured": true,
+  "remote_ci_run": false,
+  "remaining_features": [
+    "Shizuku integration",
+    "Root backend",
+    "cross-app FPS",
+    "GPU utilization",
+    "modem capture"
+  ]
+}

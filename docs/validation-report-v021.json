@@ -1,0 +1,27 @@
+{
+  "version": "0.2.1-dev",
+  "version_code": 3,
+  "build": "BUILD SUCCESSFUL",
+  "core_tests": {
+    "tests": 77,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "app_tests": {
+    "tests": 35,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "lint": {
+    "Fatal": 0,
+    "Error": 0,
+    "Warning": 7
+  },
+  "apk_bytes": 8989701,
+  "apk_sha256": "bc380ebb6c6dc05c7aeb75e51ae4a75ea493b61d5e099b78e7a05943c30f5de8",
+  "signer_matches_previous": true,
+  "fix": "Android ICU rejected literal closing brace in HAL temperature regex; escaped brace and \\z terminator. Crash occurred at AdvancedCpuCollector.<clinit>.",
+  "not_verified": "No device install/launch after fix; crash-log source did not include a successful launch."
+}

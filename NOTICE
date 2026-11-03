@@ -1,0 +1,15 @@
+LibreMonitor
+Copyright 2026 LibreMonitor contributors
+
+This is an independent implementation licensed under Apache License 2.0.
+The v0.2 optional read-only Root backend is independently written and adds no dependency.
+The app name is provisional and is not affiliated with OpenMonitor or its authors.
+
+Runtime dependencies include AndroidX and kotlinx.coroutines, distributed under
+Apache License 2.0. Their copyright and license notices remain applicable.
+No source code from OpenMonitor, AppManager, CPU Info, SoloPi, or other monitoring
+applications has been copied into this project.
+
+See docs/REUSE.md for exact selected versions, upstream license references and
+components evaluated but not included. Test/build tools have their own licenses.
+This notice is not a complete machine-generated transitive SBOM.

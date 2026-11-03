@@ -1,0 +1,73 @@
+{
+  "version": "0.2.0-dev",
+  "scope": "Final integration of v0.2; no device execution",
+  "build": {
+    "command": "bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace",
+    "exit_code": 0,
+    "result": "BUILD SUCCESSFUL",
+    "duration": "1m 38s",
+    "executed_tasks": 15,
+    "up_to_date_tasks": 41,
+    "log": "v02-build.log",
+    "note": "Core tests and lint report were UP-TO-DATE; counts are from current generated XML. An earlier rebuild attempt was cancelled after the pipe handoff and is not the final result."
+  },
+  "junit": {
+    "core": {"tests": 77, "failures": 0, "errors": 0, "skipped": 0, "report_directory": "core/build/test-results/test"},
+    "app_debug_unit": {"tests": 35, "failures": 0, "errors": 0, "skipped": 0, "report_directory": "app/build/test-results/testDebugUnitTest"},
+    "total": {"tests": 112, "failures": 0, "errors": 0, "skipped": 0}
+  },
+  "lint": {
+    "report": "app/build/reports/lint-results-debug.xml",
+    "errors": 0,
+    "warnings": 7,
+    "issues_by_id": {"GradleDependency": 7},
+    "issues_by_category": {"Correctness": 7},
+    "note": "All seven are newer dependency version suggestions; no suppression added."
+  },
+  "apk": {
+    "path": "app/build/outputs/apk/debug/app-debug.apk",
+    "bytes": 9101242,
+    "sha256": "f4425347e9fddd5c06e4817addb47756b4c1315742563639871086b75473c135",
+    "application_id": "org.libremonitor.app",
+    "version_code": 2,
+    "version_name": "0.2.0-dev",
+    "min_sdk": 26,
+    "target_sdk": 35,
+    "apksigner_verify_exit_code": 0,
+    "signature_schemes_verified": ["v2"],
+    "signer_certificate_sha256": "b1c8e0d740bb3a67e45fd0c810c0594bd7269b5926021d4a12b90283243ab491",
+    "previous_apk": "/sdcard/Download/DSH-Go/LibreMonitor-0.1.0-dev.apk",
+    "previous_apk_apksigner_verify_exit_code": 0,
+    "previous_signer_certificate_sha256": "b1c8e0d740bb3a67e45fd0c810c0594bd7269b5926021d4a12b90283243ab491",
+    "previous_signer_matches": true,
+    "zip_integrity_exit_code": 0,
+    "bundled_license_assets": ["assets/licenses/LICENSE", "assets/licenses/NOTICE", "assets/licenses/REUSE.md"],
+    "permissions": ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.POST_NOTIFICATIONS", "android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_SPECIAL_USE", "org.libremonitor.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"],
+    "badging_exit_code": 0,
+    "permissions_exit_code": 0,
+    "evidence_log": "v02-apk-validation.log"
+  },
+  "checks": {
+    "git_diff_check_exit_code": 0,
+    "sqlite_schema_version": 1,
+    "csv_columns": 7,
+    "root_default": "disabled; authorization only after explicit user action"
+  },
+  "integration_fixes": [
+    "Deliver structurally complete HAL thermalservice output through the root protocol; reject truncated or invalid frames.",
+    "Correct the fixed allowlist test to 479 and check individual limits; normalize source limit boundaries and set PATH.",
+    "Use a full shell compound command to prevent write-before-read duplex pipe deadlock; add an unprivileged bounded-pipe regression.",
+    "Limit battery root frame freshness to 2 seconds, reject vendor state_of_health as capacity health, and retain only same-battery same-unit capacity ratios.",
+    "Display valid capacity-health values through 150 percent without clamping.",
+    "Correct CPU temperature provenance, test HAL/sysfs selection with synthetic data, and avoid redundant CPU baseline reset on session transition.",
+    "Preserve available-reading explanations in the details UI."
+  ],
+  "limitations": [
+    "No APK install, launch, UI interaction, runtime permissions, real sensor or real Root validation was performed.",
+    "Root output format and 2-second frame latency vary by OEM; oversized encoded frames fail closed at 512 KiB even if individual sources fit their limits.",
+    "Root denial can be indistinguishable from unavailable; blocked worker cleanup may require restarting the app.",
+    "Only named CPU regional sensors and complete recognized HAL output are used, not verified per-core junction temperatures; GPU and battery readings depend on available sources.",
+    "AGP warns that optional platform-tools is not installed and about the configured experimental aapt2 override; Kotlin reports one deprecated coroutine resume overload.",
+    "Debug signing is not production signing; no cross-device, accessibility, performance or battery accuracy validation."
+  ]
+}
