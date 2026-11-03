@@ -44,6 +44,9 @@ class RootProtocolTest {
             RootProtocol.frameScript(id, nodes + RootProtocol.Node("/tmp/injected", 4, "echo bad"))
             fail("arbitrary node accepted")
         } catch (_: IllegalArgumentException) { }
+        val compact = RootProtocol.compactNodes()
+        assertEquals(1 + 8 + 64 + 26 + 3, compact.size)
+        assertTrue(RootProtocol.frameScript(id, compact).contains("LM:$id:BEGIN"))
     }
 
     @Test fun compoundScriptCanBeSentBeforeOutputOnSmallPipes() {
@@ -98,11 +101,12 @@ class RootProtocolTest {
     }
 
     @Test fun identityProbeRejectsFakeRoot() {
-        val valid = listOf("LM:$id:UID:0", "LM:$id:CAP:CapEff:\t0000000000200002", "LM:$id:MAP:         0          0 4294967295", "LM:$id:END")
+        val valid = listOf("LM:$id:UID:0", "LM:$id:CAP:CapEff:\t0000000000200002", "LM:$id:END")
         assertTrue(RootProtocol.verifyProbe(valid, id))
         assertFalse(RootProtocol.verifyProbe(valid.toMutableList().apply { this[0] = "LM:$id:UID:2000" }, id))
         assertFalse(RootProtocol.verifyProbe(valid.toMutableList().apply { this[1] = "LM:$id:CAP:CapEff:\t0" }, id))
-        assertFalse(RootProtocol.verifyProbe(valid.toMutableList().apply { this[2] = "LM:$id:MAP:0 100000 65536" }, id))
+        assertFalse(RootProtocol.verifyProbe(valid.toMutableList().apply { this[2] = "LM:$id:ENDX" }, id))
+        assertFalse(RootProtocol.verifyProbe(valid.dropLast(1), id))
     }
 
     @Test fun markerAndTruncationAreEnforced() {

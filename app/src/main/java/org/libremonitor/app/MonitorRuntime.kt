@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 import org.libremonitor.app.data.AndroidSampler
 import org.libremonitor.app.data.BatteryHistoryStore
 import org.libremonitor.app.data.MonitorPreferences
-import org.libremonitor.app.data.privileged.RootReader
+import org.libremonitor.app.data.privileged.OneShotRootReader
 import org.libremonitor.core.RootAccess
 import org.libremonitor.app.service.MonitorNotifications
 import org.libremonitor.app.service.MonitorService
@@ -38,7 +38,7 @@ import java.io.OutputStream
 /** Process-owned single sampling engine. No boot receiver or background auto-start. */
 class MonitorRuntime(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val rootReader = RootReader()
+    private val rootReader = OneShotRootReader()
     private val sampler = AndroidSampler(context, rootReader)
     private var rootRequestGeneration = 0L
     private var rootRequestInFlight = false

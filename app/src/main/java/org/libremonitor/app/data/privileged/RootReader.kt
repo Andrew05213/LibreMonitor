@@ -26,18 +26,20 @@ import java.util.concurrent.atomic.AtomicInteger
 class RootReader internal constructor(
     private val startProcess: () -> Process,
     private val clock: () -> Long,
-    private val authTimeoutMs: Long = 20_000L,
+    private val authTimeoutMs: Long = 60_000L,
     private val readTimeoutMs: Long = 2_000L,
-) {
+) : RootSession {
     constructor() : this(
-        { ProcessBuilder("su").redirectErrorStream(false).start() },
+        // Some root managers do not expose an interactive shell without -c.
+        // This is still a fixed command with no caller-provided input.
+        { ProcessBuilder("su", "-c", "/system/bin/sh").redirectErrorStream(false).start() },
         { SystemClock.elapsedRealtime() },
     )
 
     private val lock = Any()
     private val operation = Mutex()
     private val mutableState = MutableStateFlow(RootState())
-    val state: StateFlow<RootState> = mutableState.asStateFlow()
+    override val state: StateFlow<RootState> = mutableState.asStateFlow()
     private var active: Session? = null
     private var generation = 0L
     private var nextSessionId = 0L
@@ -193,7 +195,7 @@ class RootReader internal constructor(
         worker.start()
     }
 
-    suspend fun requestAuthorization(): Boolean {
+    override suspend fun requestAuthorization(): Boolean {
         // Contention is rejected instead of forming an unbounded queue.
         if (!operation.tryLock()) return false
         val prior = synchronized(lock) { active }
@@ -278,7 +280,7 @@ class RootReader internal constructor(
         }
     }
 
-    suspend fun readFrame(): PrivilegedNodeFrame? {
+    override suspend fun readFrame(): PrivilegedNodeFrame? {
         if (!operation.tryLock()) return null
         try {
             val session: Session
@@ -322,7 +324,7 @@ class RootReader internal constructor(
      * Fixed app-scoped grants only. No caller-provided package, permission, path or
      * shell text reaches the privileged session. Requires the user's explicit UI action.
      */
-    suspend fun grantPermissions(): PermissionGrantResult {
+    override suspend fun grantPermissions(): PermissionGrantResult {
         if (!operation.tryLock()) {
             return PermissionGrantResult(message = "Root 正在处理其他请求，请稍候重试")
         }
@@ -366,7 +368,7 @@ class RootReader internal constructor(
         }
     }
 
-    fun close() {
+    override fun close() {
         val old: Session?
         synchronized(lock) {
             generation++

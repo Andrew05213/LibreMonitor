@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 import org.libremonitor.app.data.collectors.BatteryCollector
 import org.libremonitor.app.data.collectors.AdvancedBatteryCollector
 import org.libremonitor.app.data.collectors.GpuCollector
-import org.libremonitor.app.data.privileged.RootReader
+import org.libremonitor.app.data.privileged.RootSession
 import org.libremonitor.core.RootAccess
 import org.libremonitor.app.data.collectors.CpuCollector
 import org.libremonitor.app.data.collectors.MemoryCollector
@@ -26,7 +26,7 @@ import org.libremonitor.core.MonitorSnapshot
  * One shared runtime calls sample serially; this class never starts its own loop.
  * All file/API sampling is read-only and dispatched off the UI thread.
  */
-class AndroidSampler(context: Context, private val rootReader: RootReader) {
+class AndroidSampler(context: Context, private val rootReader: RootSession) {
     private val context = context.applicationContext
     private val cpu = CpuCollector()
     private val network = NetworkCollector()
