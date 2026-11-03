@@ -5,7 +5,7 @@ This is a new, independent Android monitoring app. Do not copy OpenMonitor code,
 ## Scope
 - v0.2: compact data-first dashboard without explanatory fine print on primary cards; move provenance, permission and measurement caveats into explicit details.
 - Add genuine CPU utilization/temperature and battery capacity/cycles/health data where a validated public or read-only privileged source exists. Voltage/current/power must be prominent, not buried.
-- A user-authorized read-only Root/Shizuku backend may use fixed, bounded, allowlisted reads. Never expose an arbitrary command terminal, write kernel nodes, change SELinux, terminate processes, capture modem traffic, add analytics/internet, or auto-start at boot.
+- A user-authorized Root/Shizuku backend may use fixed, bounded, allowlisted reads. After a separate confirmation it may also run fixed app-scoped commands to grant this app's notification permission, overlay app-op and battery-optimization whitelist. Never expose an arbitrary command terminal, write kernel nodes, change SELinux, affect other apps, terminate processes, capture modem traffic, add analytics/internet, or auto-start at boot.
 - A backend is unavailable until actually implemented and probed. Do not infer privilege from another app or from the development shell.
 
 ## Data correctness

@@ -1,13 +1,13 @@
 # LibreMonitor
 
 An independent, offline-first Android monitor. Provisional name; Apache-2.0.
-Android 8.0+ (API26), Kotlin + Compose Material3. No account, analytics, internet permission or boot receiver. Root reads are optional, read-only and require explicit user authorization.
+Android 8.0+ (API26), Kotlin + Compose Material3. No account, analytics, internet permission or boot receiver. Root access is optional and user-initiated: bounded reads plus a confirmation-gated one-click grant for this app's notification, overlay and battery-whitelist entries.
 
 ## v0.2 prototype
 
 - Device information and best-effort CPU/core frequency, RAM/swap, battery, aggregate network and data-partition storage readings.
 - Missing/denied metrics retain a source and reason, never a fabricated zero. CPU temperature uses recognisable HAL CPU sensors or CPU-labelled sysfs zones, not verified per-core junction temperatures.
-- Optional user-initiated Root session reads a bounded fixed allowlist; no automatic authorization, arbitrary command interface or system writes. Availability depends on the device and Root manager. GPU driver metrics and battery capacity ratios appear only when supported; they are not synthetic defaults.
+- Optional user-initiated Root session reads a bounded fixed allowlist. After a separate confirmation, the same session may run three fixed app-scoped commands: grant this app's notification permission, allow its overlay app-op, and add it to the battery-optimization whitelist. No arbitrary command interface, other-app changes or kernel/security writes. Availability depends on the device and Root manager. GPU driver metrics and battery capacity ratios appear only when supported; they are not synthetic defaults.
 - Opt-in battery history: one sample/minute, seven-day retention, maximum50,000 rows; recent360 rows charted. Public battery-current sign is not OEM-calibrated. Power is battery-terminal `V×I`, not charger or processor power.
 - Draggable lightweight overlay with open/stop controls and a persistent foreground-service notification.
 - Streaming CSV export through the system document picker; no broad storage permission.
