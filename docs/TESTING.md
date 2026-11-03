@@ -1,26 +1,42 @@
-# Validation and device smoke-test checklist
+# Validation and test checklist
 
-A successful compile is not a measurement-accuracy test. Only entries in STATUS.md are actual results; the list below is a plan.
+A successful compile is not a measurement-accuracy test. Current actual results are in [STATUS.md](STATUS.md); this page contains the automated contract and the remaining device test plan.
 
-## Automated
-- `:core:test`: CPU guest-time accounting, interval usage, counter resets/zero traffic, memory units and malformed values, reading availability invariants, nullable/quoted CSV and formula guards, opt-in settings bounds.
-- `:app:assembleDebug`: Kotlin/Compose compile, manifests, ARM64 aapt2 daemon/resource pipeline, D8, debug packaging/signing.
-- `:app:lintDebug`: Android compatibility and manifest/API lint. No warning suppression merely to make a failed build look green.
+## Automated (current)
 
-## Device tests (require a separately approved install)
-1. Install debug APK and launch in basic mode. No network, root, storage or phone-state permission should be requested.
-2. Confirm public device metadata, RAM, battery level/temperature/voltage reflect the OS. Compare reported source/units; do not infer CPU temperature from battery.
-3. On denied `/proc/stat`, total/per-core usage shows an unavailable reason; first valid counter sample is not a zero rate. Per-core frequency availability is device-specific.
-4. Switch between1/2/5/10seconds, rotate, background/resume, open via launcher/notification/overlay. Confirm one sampling engine and no stale UI shown as current. Background without opt-in service stops sampling.
-5. Turn on history, allow notifications, wait over a minute, check stored real data and chart gaps. No sample rate should be fabricated or guaranteed during deep sleep.
-6. Deny notifications; disable app notifications or the monitor channel while service runs. Verify continuous functions stop, explain why, and do not silently resume.
-7. Enable overlay only after explicit system overlay grant. Drag within screen, open existing Activity, revoke overlay grant, stop from overlay and notification. History and overlay are independent; stopping all disables both.
-8. While Android permission UI is open, rotate/recreate the Activity, then grant/deny. The pending action must be preserved but must not enable without permission.
-9. Export through DocumentsUI; parse UTF-8 CSV, check null fields remain empty and raw signed current/power have correct labels. Repeated export to the same URI should serialize; unsupported provider/truncation errors must be explicit.
-10. Clear history using confirmation, including during recording/export. Old read results must not refill the cleared UI; subsequent newly recorded samples may appear while recording remains on.
-11. Rapidly toggle history and interval with the overlay running; old asynchronous preferences must not re-enable a user-disabled function.
-12. Kill/relaunch the process and reboot. There must be no boot autostart; app-private settings/history may persist and deliberate app opening can restore opted-in recording if notification requirements are still met.
-13. Check7day cleanup/50k cap, low storage, corrupted preferences, failed database open, clock changes, night mode,320dp width/large fonts, TalkBack and screenshot redaction.
-14. Quantify monitor overhead (CPU, battery, wakeups and frames) before calling it lightweight. No performance numbers or battery health claims without measurements.
+```sh
+bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+```
 
-Stopping prevents accepting new history records; a transaction accepted before Stop may finish. The prototype does not claim to roll back a committed sample. There is no wake lock, process watchdog, boot receiver, privilege escalation or assurance of OEM background survival.
+- `:core:test`: CPU guest-time accounting, interval usage, component-level counter regression, memory units, malformed values, `Reading` invariants, nullable/quoted/safe CSV, settings bounds.
+- `:app:testDebugUnitTest`: Root protocol framing/limits, compact allowlist, permission script/result parsing, identity probe, HAL/sysfs CPU temperature parsing, battery capacity/health parsing.
+- `:app:assembleDebug`: Kotlin/Compose compile, manifest merge, Android resource pipeline, D8 and debug packaging/signing.
+- `:app:lintDebug`: Android/manifest/API lint; no baseline or suppression merely to hide a failure.
+- GitHub Actions runs the same Gradle tasks on Ubuntu. Current evidence: [run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166).
+
+Current result: **77 core + 36 app tests**, 0 failures/errors; Lint **0 errors, 7 dependency-version warnings**.
+
+## Device smoke test (already partly performed)
+
+The OnePlus PJE110 / Android 17 / KernelSU smoke test confirmed the following once; repeat after UI/collector changes:
+
+1. Install over the previous debug build; no network/root/location/storage/boot permission prompt should appear merely on launch.
+2. Open the dashboard; check CPU gauge, temperature, per-core rows, memory/Swap, network and storage.
+3. Enable Root through the in-app confirmation; verify the Root manager prompt and `已启用 · Root`. Deny/timeout once and confirm basic mode still samples.
+4. Open battery; check level, voltage, current, power, temperature, health status, capacity health, design/full capacity, remaining charge, cycles and source. A real `0` is valid; missing data must be `—`.
+5. Tap metric cards; verify source/status/reason/sample time detail sheet. Do not expect a fabricated sample.
+6. Use the one-key permission grant; confirm the dialog lists notification/overlay/battery whitelist and that denial leaves the app usable. Revoke one permission and confirm the related function stops.
+7. Toggle history and overlay, rotate/recreate, background/resume, and use the persistent Stop action. Confirm one sampling loop and no stale UI shown as live.
+8. Export CSV through DocumentsUI; check UTF-8, seven columns, null fields empty, signed current/power labels and provider error behavior. Clear history with confirmation.
+9. Kill/relaunch and reboot: no boot autostart; deliberate app opening may restore opted-in recording only after notification checks.
+10. Check 7-day/50k cleanup, low storage, corrupted preferences, clock changes, dark/light theme, 320dp width, large fonts, TalkBack and screenshot redaction.
+11. Measure monitor CPU/battery/wakeup impact before calling it lightweight.
+
+## Still unverified
+
+- Cross-device/ROM/KernelSU compatibility, especially Root frame latency and sensor names.
+- Light theme, large fonts, TalkBack, 320dp and RTL layout.
+- OEM background survival and quantified monitoring overhead.
+- Shizuku, cross-app FPS, modem capture and widgets are unimplemented.
+
+Stopping prevents accepting new history records; an accepted transaction may finish. There is no wake lock, boot receiver, silent watchdog or assurance of OEM background survival.

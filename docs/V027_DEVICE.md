@@ -1,4 +1,6 @@
-# v0.2.7 device smoke test
+# v0.2.7 device smoke test (historical)
+
+> Historical record. It describes the pre-icon UI and the first working one-shot Root build. Current status is in [STATUS.md](STATUS.md).
 
 Date: 2026-11-03. Device: OnePlus PJE110, Android 17 (API37), KernelSU root manager. Debug APK installed over v0.2.6 with the same debug signature.
 

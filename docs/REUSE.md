@@ -12,6 +12,7 @@ The optional Root reader is an independent Apache-2.0 implementation using platf
 |---|---|---|---|
 | Android platform APIs (BatteryManager, ActivityManager, TrafficStats, StatFs, SQLiteOpenHelper, SharedPreferences, WindowManager) | SDK35, min26 | Android SDK terms for build tools; AOSP API implementation provenance | Use public APIs, app-private data, and only readable fixed proc/sysfs nodes. |
 | AndroidX Compose BOM | 2024.12.01 | Apache-2.0, https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt | Curated stable baseline, not a claim of latest; UI/foundation/Material3 and Canvas only. |
+| AndroidX Material Icons Extended | Compose BOM 2024.12.01 / 1.7.6 | Apache-2.0, AndroidX above | Standard Material Rounded glyphs for the icon dashboard; no proprietary brand assets. |
 | AndroidX Core | 1.15.0 | Apache-2.0, AndroidX above | Foreground service and compatibility helpers. |
 | Activity Compose | 1.9.3 | Apache-2.0, AndroidX above | Native Compose entry point and system document/permission contracts. |
 | Lifecycle Runtime Compose | 2.8.7 | Apache-2.0, AndroidX above | Lifecycle-aware StateFlow collection. |
@@ -24,7 +25,7 @@ AGP8.7.2 / Gradle8.9 / JDK17 / Kotlin2.1.21 / compileSdk35 is a conservative bui
 ## Evaluated, not included
 
 - **Shizuku API 13.1.5 — MIT**: https://github.com/RikkaApps/Shizuku-API/blob/master/LICENSE . API license is MIT, unlike the Shizuku application itself (Apache-2.0). Future optional shell backend; requires separately installed and started Shizuku. No dependency, authorization prompt, or fake working Shizuku mode in this MVP.
-- **libsu 6.0.0 — Apache-2.0**: https://github.com/topjohnwu/libsu/blob/6.0.0/LICENSE . Optional future root backend, not an escalation mechanism. Do not introduce all modules by default.
+- **libsu 6.0.0 — Apache-2.0**: https://github.com/topjohnwu/libsu/blob/6.0.0/LICENSE . Optional future root backend, not an escalation mechanism. Not included: the current one-shot backend uses a fixed `ProcessBuilder("su", "-c", ...)` command and contains no library dependency. A library may still be preferable for shell lifecycle/authorization handling in a broader backend.
 - **Room / Preferences DataStore — Apache-2.0**: verified latest metadata listed 2.8.5 / 1.3.0 at research time. Deferred to avoid KSP/codegen and newer toolchain constraints for the small MVP. Platform SQLite/SharedPreferences meets current scope; migration needs versioned non-destructive paths.
 - **Vico 3.3.1 — Apache-2.0**: https://github.com/patrykandpatrick/vico/blob/v3.3.1/LICENSE . More chart functionality than needed. Canvas keeps the small trend chart dependency-free.
 - **CPU Info — Apache-2.0**: https://github.com/kamgurgul/cpu-info/blob/master/LICENSE . Useful reference for public device metadata/provider boundaries. No code copied; do not copy unavailable=-1 conventions or infer CPU temperature from arbitrary thermal nodes.

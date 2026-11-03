@@ -1,0 +1,62 @@
+{
+  "version": "0.3.1-dev",
+  "version_code": 11,
+  "application_id": "org.libremonitor.app",
+  "build": {
+    "command": "bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug",
+    "result": "BUILD SUCCESSFUL"
+  },
+  "junit": {
+    "core": {"tests": 77, "failures": 0, "errors": 0, "skipped": 0},
+    "app_debug_unit": {"tests": 36, "failures": 0, "errors": 0, "skipped": 0},
+    "total": {"tests": 113, "failures": 0, "errors": 0, "skipped": 0}
+  },
+  "lint": {"errors": 0, "warnings": 7, "warning_scope": "newer dependency-version suggestions; no baseline or suppression"},
+  "ci": {
+    "provider": "GitHub Actions",
+    "run_id": 41625409166,
+    "status": "success",
+    "url": "https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166"
+  },
+  "apk": {
+    "path": "app/build/outputs/apk/debug/app-debug.apk",
+    "sha256": "4f399746098772d661bee990d19e59823cf64a2b2d3770d2cca33e8c8e8f76cb",
+    "signing": "debug v2 signature; not production signing"
+  },
+  "device_smoke": {
+    "device": "OnePlus PJE110",
+    "android": "17 (API37)",
+    "root_manager": "KernelSU",
+    "root": "one-shot su -c backend active",
+    "permissions": ["POST_NOTIFICATIONS granted", "SYSTEM_ALERT_WINDOW app-op allowed", "battery-optimization whitelist added"],
+    "cpu": "about 42.6% total; per-core CPU0-CPU7 populated",
+    "cpu_temperature_c": 64.8,
+    "battery": {
+      "level_percent": 100,
+      "voltage_v": 4.44,
+      "current_ma": -1,
+      "power_w": -0.00,
+      "temperature_c": 34.5,
+      "health_status": "GOOD",
+      "capacity_health_percent": 82.4,
+      "design_mah": 5500,
+      "full_charge_mah": 4530,
+      "remaining_charge_mah": 4376,
+      "cycles": 883,
+      "charging_source": "AC"
+    },
+    "note": "point-in-time visual/sensor smoke test; not calibration or cross-device evidence"
+  },
+  "repository": {
+    "url": "https://github.com/Andrew05213/LibreMonitor",
+    "visibility": "public",
+    "license": "Apache-2.0"
+  },
+  "not_verified": [
+    "production signing, release artifact or Play submission",
+    "cross-device ROM/KernelSU compatibility",
+    "light theme, large font, TalkBack, 320dp and RTL acceptance",
+    "monitoring overhead and OEM background survival",
+    "Shizuku/cross-app FPS/modem/widgets (not implemented)"
+  ]
+}

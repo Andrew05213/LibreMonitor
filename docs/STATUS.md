@@ -1,49 +1,50 @@
-# Validation status — 0.1.0-dev
+# Current validation status — 0.3.1-dev
 
-Validated on2026-11-03 using an ARM64 Android phone running Ubuntu/proot. This is an independent development prototype, not a production or cross-device validated release.
+Updated 2026-11-03. This is a development prototype, not a production or cross-device validated release.
 
-## Actual results
+## Current build
 
-The final command was:
+- Version `0.3.1-dev`, versionCode `11`, application ID `org.libremonitor.app`.
+- Build: `bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`.
+- Result: **BUILD SUCCESSFUL**.
+- Tests: **77 core + 36 app JVM tests**, 0 failures, 0 errors, 0 skipped.
+- Android Lint: **0 errors, 7 warnings**, all newer-dependency suggestions; no baseline or suppression.
+- GitHub Actions: [run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166) passed `Prepare SDK`, tests, debug assemble, lint and artifact upload.
+- Debug APK SHA-256 `4f399746098772d661bee990d19e59823cf64a2b2d3770d2cca33e8c8e8f76cb`; local deliverable `LibreMonitor-0.3.1-dev.apk`.
+- APK is debug-signed with the same development certificate used by earlier builds; no production signing exists.
 
-```sh
-bash scripts/build-local.sh :core:test :app:assembleDebug :app:lintDebug --stacktrace
-```
+## Device smoke evidence
 
-- **BUILD SUCCESSFUL**, exit0. The final incremental build executed22tasks with29up-to-date; a previous full pass actually executed the core test suite.
-- **24core JVM tests,0failures,0errors,0skipped**. CPU accounting/reset handling, memory units, missing values, signed/nullable CSV and formula guards were exercised.
-- Android Kotlin/Compose compilation, ARM64 aapt2 resource/daemon pipeline, D8 and debug APK packaging completed.
-- **Android Lint:0errors,7warnings**. All seven are newer-version suggestions for deliberately pinned dependencies. No baseline or suppression was added to hide errors.
-- Final APK verified by apksigner using APK Signature Scheme v2. Debug signing is for development only.
-- Final APK size:9,322,845bytes. SHA256:`e9e54ccc252f2290cf1c3bd9d0c13b6664e2915c788ce5c796e9096f46fbf48c`.
-- Manifest audit found no INTERNET, location, phone-state, broad storage, package-query or boot-autostart permission. Expected permissions are overlay, notifications, foreground-service/special-use and AndroidX's app-specific non-exported-receiver signature permission.
-- APK ZIP integrity and bundled LICENSE/NOTICE/REUSE assets were checked.
-- Gradle Wrapper distribution SHA256 is pinned. Python/shell helper syntax checks passed. Staged source diff passed whitespace validation after declaring normal Windows Wrapper CRLF attributes.
+On a OnePlus PJE110, Android 17 (API37), KernelSU:
 
-Machine-readable evidence is in `validation-report.json`. Full local generated reports remain under ignored `core/build` and `app/build` directories.
+- App installed and opened after the Android ICU regex fix.
+- Root one-shot backend reported `已启用 · Root`; notification, overlay app-op and battery-optimization whitelist were granted through the confirmation-gated action.
+- Overview showed CPU usage around 42.6%, CPU temperature 64.8°C and populated CPU0–CPU7 usage/frequency rows.
+- Battery page showed 100%, 4.44V, -1mA, -0.00W, 34.5°C, GOOD, capacity health 82.4%, design 5500mAh, full 4530mAh, remaining 4376mAh, 883 cycles and AC.
+- The icon-led UI was visually inspected on this device.
+
+Machine-readable evidence is in [validation-report-v031.json](validation-report-v031.json).
+
+These are point-in-time smoke observations. They are not calibration data, not proof of cross-device support, and not a claim that every value is accurate. See [V027_DEVICE.md](V027_DEVICE.md) and [V030_UI.md](V030_UI.md).
 
 ## Implemented
 
-Compose overview/battery/settings UI; public-API and fixed-readable-node collectors; private nullable SQLite battery history and queued preferences; one shared sampling runtime; explicit notification/overlay foreground service; draggable overlay; system-document-picker streaming CSV export; source/reason and stale-data handling; seven-day/50k storage limits; confirmed clear action; backup/transfer exclusions.
+- Compact icon dashboard: CPU hero/gauge, per-core bars, memory/Swap, network, storage, GPU when available.
+- Battery detail page with voltage/current/power/temperature/health/capacity/cycle readings, real-history chart, CSV export and confirmed clear.
+- Optional Root session: one-shot `su -c` backend compatible with the tested KernelSU device; compact fixed read-only frame; explicit user confirmation; no arbitrary shell.
+- One-key permission grant after Root is active: notification permission, overlay app-op and battery-optimization whitelist, all app-scoped fixed commands.
+- Opt-in battery history, foreground-service notification, draggable overlay, no internet permission, no boot receiver, no analytics.
+- SQLite schema version 1 and seven-column CSV preserved.
 
-Parallel implementation and cross-review addressed delayed preferences overriding newer user intent, multiple Activity visibility, permission-result recreation, notification/channel denial, cadence cancellation, stale history query publication and foreground-only freshness ticks.
+## Not verified / not implemented
 
-## Environment notes and resolved build issues
+- No production signing, Play Store submission, Play policy review or release artifact.
+- No cross-device/ROM/KernelSU compatibility matrix, no light-theme/large-font/TalkBack/320dp visual acceptance.
+- No measured monitoring overhead or OEM background-survival test.
+- Shizuku backend, cross-app FPS, GPU utilization coverage, modem capture and widgets remain unimplemented.
+- CPU temperature is a named HAL/regional CPU sensor, not a verified per-core junction temperature; battery power is an uncalibrated battery-terminal estimate.
+- Root denial may be reported as unavailable; a stuck cleanup worker may require restarting the app.
 
-- JDK17 and Gradle8.9 run on this ARM64 host. SDK35/build-tools35.0.0 archives were checked against Google metadata; downloads and SDK terms acceptance were explicitly approved by the user.
-- A third-party static ARM64 aapt2 was checked with file/readelf/version and then exercised by the full resource build. Its reviewed archive SHA256 is pinned. It is not an official Google ARM64 binary; provenance is recorded in ignored local toolchain metadata.
-- Minimal-rootfs JDK package setup required a missing man directory; normal dpkg configuration repaired it.
-- Missing Java cacerts was repaired through system certificate tooling. TLS verification was never disabled.
-- AGP's default build-tools34 mismatch was fixed by explicitly selecting installed35.0.0.
-- A Compose Lint false-positive around nested produceState assignment was resolved by using remembered state plus a lifecycle-bound effect, not by suppression.
-- Optional platform-tools remains uninstalled, so AGP emits an optional-package/license warning. It was not needed for compilation. No adb command/device connection was used.
-- Native AndroidX path library stripping could not run with absent cross-strip tools; the debug APK packages the original Maven library. This does not invalidate debug signing, but no release-size/optimization claim is made.
+## Historical records
 
-## Explicitly not verified / not implemented
-
-- **No APK installation or launch**, no runtime notification/overlay authorization, no device history/export/rotation/TalkBack/large-font smoke test, no quantified monitoring overhead or OEM background-survival test.
-- No battery health, universal CPU/GPU/temperature availability or cross-device accuracy claim. CPU temperature is unavailable without a validated mapping; battery power is an uncalibrated battery-terminal estimate.
-- Shizuku/root backends, cross-app FPS, GPU utilization, modem capture and widgets are not implemented and are labelled unavailable.
-- GitHub Actions is configured but no remote repository, CI run, publication, or production signing was performed.
-
-See TESTING.md for a separately approved device-test plan. Stop prevents new history acceptance; an already accepted transaction may complete. No wake lock, boot receiver or silent watchdog is present.
+v0.1 and v0.2 snapshots/reviews are under [docs/archive/](archive/). They are retained for provenance, not as current claims.

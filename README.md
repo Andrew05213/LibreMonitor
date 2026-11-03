@@ -1,46 +1,60 @@
 # LibreMonitor
 
-An independent, offline-first Android monitor. Provisional name; Apache-2.0.
-Android 8.0+ (API26), Kotlin + Compose Material3. No account, analytics, internet permission or boot receiver. Root access is optional and user-initiated: bounded reads plus a confirmation-gated one-click grant for this app's notification, overlay and battery-whitelist entries.
+**English** | [简体中文](README.zh-CN.md)
 
-## v0.2 prototype
+An independent, offline-first Android system monitor. Apache-2.0.
 
-- Device information and best-effort CPU/core frequency, RAM/swap, battery, aggregate network and data-partition storage readings.
-- Missing/denied metrics retain a source and reason, never a fabricated zero. CPU temperature uses recognisable HAL CPU sensors or CPU-labelled sysfs zones, not verified per-core junction temperatures.
-- Optional user-initiated Root session reads a bounded fixed allowlist. After a separate confirmation, the same session may run three fixed app-scoped commands: grant this app's notification permission, allow its overlay app-op, and add it to the battery-optimization whitelist. No arbitrary command interface, other-app changes or kernel/security writes. Availability depends on the device and Root manager. GPU driver metrics and battery capacity ratios appear only when supported; they are not synthetic defaults.
-- Opt-in battery history: one sample/minute, seven-day retention, maximum50,000 rows; recent360 rows charted. Public battery-current sign is not OEM-calibrated. Power is battery-terminal `V×I`, not charger or processor power.
-- Draggable lightweight overlay with open/stop controls and a persistent foreground-service notification.
-- Streaming CSV export through the system document picker; no broad storage permission.
-- One sampling engine feeds UI, history and overlay. UI-only monitoring stops when the app is no longer visible. Continuous recording/overlay requires user opt-in and a visible notification. System/OEM power management may still stop it; no wake lock or silent restart.
+Current development version: **0.3.1-dev** (versionCode 11). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
 
-**Not implemented:** Shizuku mode, cross-app FPS, CPU temperature calibration, modem capture, widgets, i18n beyond the Chinese prototype UI. Capacity health is shown only as a same-battery, same-unit full/design ratio; support is device-dependent.
+## Current prototype
+
+- Icon-led dashboard with CPU usage gauge, CPU temperature, per-core usage/frequency bars, memory/Swap, network and storage cards.
+- Battery page with level gauge, voltage, current, power, temperature, health status, capacity health, design/full-charge capacity, remaining charge, cycle count and charging source.
+- Optional, user-initiated Root session. The tested implementation uses a one-shot fixed `su -c` command with a compact read-only allowlist, not an arbitrary shell. It is device/ROM/Root-manager dependent.
+- After a separate confirmation, Root can grant this app only: notification permission, overlay app-op and the battery-optimization whitelist.
+- Opt-in local battery history, real-history chart, seven-day/50,000-row limits, CSV export through the system document picker.
+- Draggable lightweight overlay with a persistent foreground-service notification and a Stop action.
+- Missing, denied, stale or invalid readings remain unavailable (`—`) rather than becoming zero.
+
+## Not implemented
+
+- Shizuku backend, cross-app FPS, modem capture, widgets and a full multi-language UI.
+- CPU temperature is a HAL or CPU-labelled regional sensor, not verified per-core junction temperature.
+- Battery health is a same-battery, same-unit full-charge/design ratio; it is device-dependent and not a lab health certificate.
+- Battery power is an uncalibrated terminal `V×I` estimate, not charger/SoC power.
+- No production signing, release artifact or Play Store submission exists.
 
 ## Build
 
-Conservative baseline: JDK17, Gradle8.9, AGP8.7.2, Kotlin/Compose compiler2.1.21, compile/targetSDK35. This is not a claim of latest versions or current Play Store submission eligibility.
+Conservative baseline: JDK17, Gradle8.9, AGP8.7.2, Kotlin/Compose compiler2.1.21, compile/target SDK35.
 
-On a normal Linux/macOS/Windows Android SDK host:
+Normal Linux/macOS/Windows Android SDK host:
 
 ```sh
 ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
-On this ARM64 Android/proot host, read `docs/BUILDING.md`. The project-local helper downloads significant tools, requires explicit Android SDK license acceptance, and uses a disclosed third-party static ARM64 aapt2. Do not execute it blindly on another host.
+This Android/ARM64 proot host needs a project-local JDK/SDK/Gradle toolchain; read [docs/BUILDING.md](docs/BUILDING.md). The helper downloads significant tools and uses a disclosed third-party static ARM64 aapt2. Do not run it blindly on another host.
 
-Debug APK output: `app/build/outputs/apk/debug/app-debug.apk`. Debug signing is for development only. No production signing keys are included, and the app is not automatically installed.
+Debug APK output: `app/build/outputs/apk/debug/app-debug.apk`. Debug signing is for development only; the app is not automatically installed.
 
-## Development
+## Documentation
 
-`core/` is pure Kotlin with counter parsing, monotonic-rate math, nullable readings and CSV tests. `app/` owns public Android collectors, local persistence, a shared runtime, Compose UI, and the opt-in foreground/overlay service.
-
-Read `AGENTS.md`, `docs/CONTRACTS.md` and `docs/REUSE.md` for boundaries, licenses and components considered. No monitoring-app source or brand assets were copied; OpenMonitor was inspected only as a functional reference.
+- [Current status and device smoke evidence](docs/STATUS.md)
+- [Changelog](docs/CHANGELOG.md)
+- [Documentation index](docs/INDEX.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Build instructions](docs/BUILDING.md)
+- [Test checklist](docs/TESTING.md)
+- [Component reuse and licenses](docs/REUSE.md)
+- [v0.2 Root/device notes](docs/V027_DEVICE.md)
+- [v0.3 icon UI notes](docs/V030_UI.md)
+- [Historical v0.1/v0.2 records](docs/archive/)
 
 ## Privacy and measurements
 
-Everything is stored in app-private local storage. Android backup is disabled. Exported CSV can contain usage/charging patterns; share it deliberately. No cellular identifiers, SSID/BSSID, process lists, or credentials are collected. Clear history requires confirmation in the app.
+Everything is stored in app-private local storage. Android backup/transfer is disabled. Exported CSV can contain usage and charging patterns; share it deliberately. No cellular identifiers, SSID/BSSID, process lists or credentials are collected. Clear history requires confirmation.
 
-Some Android versions/ROMs deny `/proc/stat` or CPU-frequency nodes. A missing global CPU metric is expected in basic mode, not a reason to display app CPU or refresh rate under a misleading label. Aggregate TrafficStats counters are not per-app or billing measurements and VPN/interface accounting can differ. For every feature, test the actual device/ROM/permission combination.
+Some Android versions/ROMs deny `/proc/stat` or CPU-frequency nodes. A missing global CPU metric is expected in basic mode and is not replaced with app CPU or refresh rate. TrafficStats counters are aggregate device counters, not per-app or billing figures.
 
-## Validation status
-
-See `docs/STATUS-V02.md` for v0.2 commands, results, artifacts, and limitations; `docs/STATUS.md` records v0.1. A source build is not proof of on-device correctness or background reliability.
+A source build is not proof of on-device correctness. Read [STATUS.md](docs/STATUS.md) before treating a measurement as validated.
