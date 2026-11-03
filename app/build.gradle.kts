@@ -12,8 +12,8 @@ android {
         applicationId = "org.libremonitor.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.2.7-dev"
+        versionCode = 11
+        versionName = "0.3.1-dev"
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -44,6 +44,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
