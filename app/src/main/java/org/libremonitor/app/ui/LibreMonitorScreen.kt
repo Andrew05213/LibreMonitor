@@ -568,11 +568,12 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, request
 @Composable
 private fun RootControl(state: MonitorUiState, actions: MonitorActions) {
     var confirmRequest by rememberSaveable { mutableStateOf(false) }
+    var confirmGrant by rememberSaveable { mutableStateOf(false) }
     val root = state.rootState
     val status = when (root.access) {
         RootAccess.DISABLED -> "未启用"
         RootAccess.REQUESTING -> "等待授权"
-        RootAccess.GRANTED -> "已启用 · 只读"
+        RootAccess.GRANTED -> "已启用 · Root"
         RootAccess.DENIED -> "未授权"
         RootAccess.UNAVAILABLE -> "不可用"
         RootAccess.ERROR -> "连接异常"
@@ -585,22 +586,55 @@ private fun RootControl(state: MonitorUiState, actions: MonitorActions) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+    state.permissionGrantMessage?.let {
+        Text(it, style = MaterialTheme.typography.bodyMedium)
+    }
     when (root.access) {
         RootAccess.REQUESTING -> OutlinedButton(
             onClick = {},
             enabled = false,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) { Text("等待授权…") }
-        RootAccess.GRANTED -> OutlinedButton(
-            onClick = actions.onRootDisable,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        ) { Text("停用只读读取") }
+        RootAccess.GRANTED -> {
+            OutlinedButton(
+                onClick = { confirmGrant = true },
+                enabled = !state.permissionGrantRunning,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                if (state.permissionGrantRunning) Text("正在授权…")
+                else Text("一键授权通知、悬浮窗、电池白名单")
+            }
+            OutlinedButton(
+                onClick = actions.onRootDisable,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) { Text("停用只读读取") }
+        }
         else -> OutlinedButton(
             onClick = { confirmRequest = true },
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) {
             Text(if (root.access == RootAccess.DISABLED) "启用只读读取" else "手动重试")
         }
+    }
+    if (confirmGrant) {
+        AlertDialog(
+            onDismissRequest = { confirmGrant = false },
+            title = { Text("一键授予所需权限？") },
+            text = {
+                Text(
+                    "通过现有 Root 会话仅对本应用执行固定命令：\n" +
+                        "· 通知权限\n· 悬浮窗权限\n· 电池优化白名单\n\n" +
+                        "不开放 shell，不修改其他应用或系统文件；可随时在系统设置中撤销。",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmGrant = false
+                    actions.onRootGrantPermissions()
+                }) { Text("确认授权") }
+            },
+            dismissButton = { TextButton(onClick = { confirmGrant = false }) { Text("取消") } },
+        )
     }
     if (confirmRequest) {
         AlertDialog(

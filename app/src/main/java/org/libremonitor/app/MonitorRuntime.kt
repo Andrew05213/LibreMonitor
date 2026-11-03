@@ -174,6 +174,35 @@ class MonitorRuntime(private val context: Context) {
         mutableState.update { it.copy(rootState = rootReader.state.value) }
     }
 
+    /** Explicit user action: grant only this app's notification, overlay and battery-whitelist entries. */
+    fun grantRootPermissions() {
+        if (!visible.value) {
+            reportError("请在应用前台确认一键授权。")
+            return
+        }
+        if (rootReader.state.value.access != RootAccess.GRANTED) {
+            reportError("请先启用 Root 只读会话，再一键授权。")
+            return
+        }
+        if (state.value.permissionGrantRunning) return
+        mutableState.update { it.copy(permissionGrantRunning = true, permissionGrantMessage = null) }
+        scope.launch {
+            try {
+                val result = rootReader.grantPermissions()
+                mutableState.update {
+                    it.copy(permissionGrantRunning = false, permissionGrantMessage = result.message)
+                }
+                if (!result.anyGranted) reportError("一键授权未成功：${result.message}")
+                else reconcileService()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                mutableState.update { it.copy(permissionGrantRunning = false) }
+                reportError("一键授权失败：${e.javaClass.simpleName}")
+            }
+        }
+    }
+
     fun stopAll() {
         disableRoot()
         stopRequested = true

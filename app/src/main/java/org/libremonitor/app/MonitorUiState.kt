@@ -16,6 +16,8 @@ data class MonitorUiState(
     val serviceRunning: Boolean = false,
     val error: String? = null,
     val rootState: RootState = RootState(),
+    val permissionGrantRunning: Boolean = false,
+    val permissionGrantMessage: String? = null,
 )
 
 data class MonitorActions(
@@ -27,4 +29,5 @@ data class MonitorActions(
     val onDismissError: () -> Unit,
     val onRootRequest: () -> Unit = {},
     val onRootDisable: () -> Unit = {},
+    val onRootGrantPermissions: () -> Unit = {},
 )

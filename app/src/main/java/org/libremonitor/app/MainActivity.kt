@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
                 onDismissError = runtime::dismissError,
                 onRootRequest = runtime::requestRoot,
                 onRootDisable = runtime::disableRoot,
+                onRootGrantPermissions = runtime::grantRootPermissions,
             ))
         }
     }

@@ -77,6 +77,26 @@ class RootProtocolTest {
         }
     }
 
+    @Test fun permissionScriptIsFixedToThisAppAndReadsMarkers() {
+        val script = RootProtocol.permissionScript(id)
+        assertTrue(script.contains("pm grant org.libremonitor.app android.permission.POST_NOTIFICATIONS"))
+        assertTrue(script.contains("appops set org.libremonitor.app SYSTEM_ALERT_WINDOW allow"))
+        assertTrue(script.contains("dumpsys deviceidle whitelist +org.libremonitor.app"))
+        assertFalse(script.contains("eval"))
+        assertFalse(script.contains("sh -c"))
+        val input = frame(
+            "LM:$id:NOTIF:OK\nLM:$id:OVERLAY:FAIL\nLM:$id:BATTERY:OK\nLM:$id:END\n",
+        )
+        assertEquals(
+            listOf("LM:$id:NOTIF:OK", "LM:$id:OVERLAY:FAIL", "LM:$id:BATTERY:OK", "LM:$id:END"),
+            RootProtocol.readPermissionResults(input, id),
+        )
+        try {
+            RootProtocol.readPermissionResults(frame("LM:$id:NOTIF:OK\n"), id)
+            fail("missing permission end marker accepted")
+        } catch (_: ProtocolException) { }
+    }
+
     @Test fun identityProbeRejectsFakeRoot() {
         val valid = listOf("LM:$id:UID:0", "LM:$id:CAP:CapEff:\t0000000000200002", "LM:$id:MAP:         0          0 4294967295", "LM:$id:END")
         assertTrue(RootProtocol.verifyProbe(valid, id))

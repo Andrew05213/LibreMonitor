@@ -13,6 +13,7 @@ import kotlin.coroutines.resumeWithException
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeout
+import org.libremonitor.core.PermissionGrantResult
 import org.libremonitor.core.PrivilegedNodeFrame
 import org.libremonitor.core.RootAccess
 import org.libremonitor.core.RootState
@@ -311,6 +312,54 @@ class RootReader internal constructor(
             } catch (_: Exception) {
                 fail(session, RootAccess.ERROR, "Root frame failed or incomplete")
                 null
+            }
+        } finally {
+            operation.unlock()
+        }
+    }
+
+    /**
+     * Fixed app-scoped grants only. No caller-provided package, permission, path or
+     * shell text reaches the privileged session. Requires the user's explicit UI action.
+     */
+    suspend fun grantPermissions(): PermissionGrantResult {
+        if (!operation.tryLock()) {
+            return PermissionGrantResult(message = "Root 正在处理其他请求，请稍候重试")
+        }
+        try {
+            val session: Session
+            synchronized(lock) {
+                session = active ?: return PermissionGrantResult(message = "Root 会话未启用")
+                if (mutableState.value.access != RootAccess.GRANTED || session.closed.get()) {
+                    return PermissionGrantResult(message = "Root 会话不可用，请重新授权")
+                }
+            }
+            return try {
+                val lines = timed(session, authTimeoutMs) {
+                    val id = randomId()
+                    writeScript(session.process.outputStream, RootProtocol.permissionScript(id))
+                    RootProtocol.readPermissionResults(session.process.inputStream, id)
+                }
+                val notifications = lines[0].endsWith(":OK")
+                val overlay = lines[1].endsWith(":OK")
+                val battery = lines[2].endsWith(":OK")
+                PermissionGrantResult(
+                    notifications = notifications,
+                    overlay = overlay,
+                    batteryOptimization = battery,
+                    message = buildString {
+                        append("通知 ").append(if (notifications) "已授予" else "未授予")
+                        append(" · 悬浮窗 ").append(if (overlay) "已允许" else "未允许")
+                        append(" · 电池白名单 ").append(if (battery) "已加入" else "未加入")
+                    },
+                )
+            } catch (_: TimeoutCancellationException) {
+                fail(session, RootAccess.ERROR, "Root permission grant timed out")
+                PermissionGrantResult(message = "授权命令超时，Root 会话已失效")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                PermissionGrantResult(message = "授权命令执行失败，未确认全部权限")
             }
         } finally {
             operation.unlock()

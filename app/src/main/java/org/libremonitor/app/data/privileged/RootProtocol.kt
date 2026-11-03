@@ -15,6 +15,7 @@ internal object RootProtocol {
     const val MAX_STDERR = 16 * 1024
     const val MAX_CORES = 256
     const val MAX_ZONES = 96
+    const val PACKAGE = "org.libremonitor.app"
     private const val PROC_LIMIT = 256 * 1024
     private const val HAL_LIMIT = 64 * 1024
     private val powerFields = listOf(
@@ -76,6 +77,26 @@ internal object RootProtocol {
             "printf 'LM:$id:CAP:'; while IFS= read -r l; do case \"\u0024l\" in CapEff:*) printf '%s\\n' \"\u0024l\";; esac; done < /proc/self/status; " +
             "printf 'LM:$id:MAP:'; while IFS= read -r l; do printf '%s\\n' \"\u0024l\"; done < /proc/self/uid_map; " +
             "printf 'LM:$id:END\\n'\n"
+    }
+
+    /**
+     * Fixed, app-scoped permission commands. There is deliberately no caller-provided
+     * package, permission, path, or shell fragment in this script.
+     */
+    fun permissionScript(id: String): String {
+        require(id.matches(Regex("[a-f0-9]{32}")))
+        return "{\nPATH=/system/bin:/system/xbin; export PATH\n" +
+            "printf 'LM:$id:NOTIF:'; if /system/bin/pm grant $PACKAGE android.permission.POST_NOTIFICATIONS >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
+            "printf 'LM:$id:OVERLAY:'; if /system/bin/appops set $PACKAGE SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
+            "printf 'LM:$id:BATTERY:'; if /system/bin/dumpsys deviceidle whitelist +$PACKAGE >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
+            "printf 'LM:$id:END\\n'\n}\n"
+    }
+
+    fun readPermissionResults(input: InputStream, id: String): List<String> {
+        val budget = Budget(4096)
+        return List(4) { readLine(input, budget) }.also {
+            if (it[3] != "LM:$id:END") throw ProtocolException("missing permission end marker")
+        }
     }
 
     fun verifyProbe(lines: List<String>, id: String): Boolean {

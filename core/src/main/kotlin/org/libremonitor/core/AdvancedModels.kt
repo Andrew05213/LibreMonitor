@@ -15,3 +15,13 @@ data class PrivilegedNodeFrame(
     val sampledElapsedRealtimeMs: Long,
     val sessionId: Long,
 )
+
+/** Result of fixed, app-scoped root permission commands. */
+data class PermissionGrantResult(
+    val notifications: Boolean = false,
+    val overlay: Boolean = false,
+    val batteryOptimization: Boolean = false,
+    val message: String = "",
+) {
+    val anyGranted: Boolean get() = notifications || overlay || batteryOptimization
+}
