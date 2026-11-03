@@ -1,0 +1,27 @@
+{
+  "version": "0.2.2-dev",
+  "version_code": 4,
+  "core_tests": {
+    "tests": 77,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "app_tests": {
+    "tests": 36,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "lint": {
+    "Fatal": 0,
+    "Error": 0,
+    "Warning": 7
+  },
+  "apk_bytes": 8989701,
+  "apk_sha256": "a18d1e5921802f342f0249ca10b29edf3eacebf4c6f417a47851d92169e6f56f",
+  "signer_matches_previous": true,
+  "feature": "Root session + confirmation dialog grants POST_NOTIFICATIONS, SYSTEM_ALERT_WINDOW appop, and battery-optimization whitelist through fixed app-scoped commands",
+  "ci": "GitHub Actions run 41574266704 passed: Prepare SDK, tests, assembleDebug, lint, artifact upload",
+  "not_verified": "Permission grant not executed on a real device/root manager in this session"
+}
