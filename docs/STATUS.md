@@ -9,7 +9,7 @@ Updated 2026-11-03. This is a development prototype, not a production or cross-d
 - Result: **BUILD SUCCESSFUL**.
 - Tests: **77 core + 36 app JVM tests**, 0 failures, 0 errors, 0 skipped.
 - Android Lint: **0 errors, 7 warnings**, all newer-dependency suggestions; no baseline or suppression.
-- GitHub Actions: the 0.3.1 run [41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166) passed; the 0.4.0 commit requires a new run (not yet claimed as passed here).
+- GitHub Actions: [run 41752692599](https://github.com/Andrew05213/LibreMonitor/actions/runs/41752692599) passed `Prepare SDK`, tests, debug assemble, lint and artifact upload for the 0.4.0 Bluetooth commit.
 - Debug APK SHA-256 `67cd9426b191460be00a22d85b7b17f417a6fccf024b469da0406a039058114e`; local deliverable `LibreMonitor-0.4.0-dev.apk`.
 - APK is debug-signed with the same development certificate used by earlier builds; no production signing exists.
 

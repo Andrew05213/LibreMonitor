@@ -23,6 +23,7 @@
     "devices": "bonded devices with type, bond state, Class, service bits and known UUID/profile mapping",
     "unavailable_by_design": ["core Bluetooth version", "per-device live RSSI", "per-device battery level"]
   },
+  "ci": {"run_id": 41752692599, "status": "success", "url": "https://github.com/Andrew05213/LibreMonitor/actions/runs/41752692599"},
   "not_verified": [
     "Bluetooth permission and device list on a real device for 0.4.0",
     "RSSI/version if Android or a vendor interface does not expose them",

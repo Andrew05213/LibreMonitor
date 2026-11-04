@@ -8,7 +8,7 @@ Requirements: JDK17, Android SDK platform35 + build-tools35.0.0, internet for in
 ./gradlew --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
-The public GitHub Actions workflow passed for the 0.3.1 tree ([run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166)); the 0.4.0 commit requires its own run. A green build is not a device-accuracy guarantee.
+The public GitHub Actions workflow passed for the 0.3.1 tree ([run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166)); the 0.4.0 Bluetooth commit passed in [run 41752692599](https://github.com/Andrew05213/LibreMonitor/actions/runs/41752692599). A green build is not a device-accuracy guarantee.
 
 ## This phone: Ubuntu24.04 proot, aarch64
 
