@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.libremonitor.core.FpsSample
 import org.libremonitor.core.PermissionGrantResult
 import org.libremonitor.core.PrivilegedNodeFrame
 import org.libremonitor.core.RootAccess
@@ -122,6 +123,23 @@ class OneShotRootReader internal constructor(
                 " · 电池白名单 " + (if (battery) "已加入" else "未加入") +
                 " · 蓝牙 " + (if (bluetooth) "已授予" else "未授予"),
         )
+    }
+
+    override suspend fun readFps(): FpsSample? {
+        if (!operation.tryLock()) return null
+        return try {
+            if (mutableState.value.access != RootAccess.GRANTED) return null
+            val output = withContext(Dispatchers.IO) {
+                run(RootProtocol.fpsScript(randomId()), readTimeoutMs)
+            } ?: return null
+            return RootProtocol.parseFps(output)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } finally {
+            operation.unlock()
+        }
     }
 
     override fun close() {

@@ -4,13 +4,14 @@
 
 An independent, offline-first Android system monitor. Apache-2.0.
 
-Current development version: **0.4.0-dev** (versionCode 12). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
+Current development version: **0.4.1-dev** (versionCode 12). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
 
 ## Current prototype
 
 - Icon-led dashboard with CPU usage gauge, CPU temperature, per-core usage/frequency bars, memory/Swap, network and storage cards.
 - Battery page with level gauge, voltage, current, power, temperature, health status, capacity health, design/full-charge capacity, remaining charge, cycle count and charging source.
 - Bluetooth card: adapter state/name/address, LE support, connected profile count, paired devices, classic/LE/dual type, Class/services, known profile mapping (A2DP/HFP/AVRCP/HID/HOGP/SPP/…), plus explicit unavailable states for core version, per-device RSSI and battery.
+- FPS and 1% low from SurfaceFlinger frame timestamps for the foreground layer, shown in the dashboard and overlay when Root is available; unavailable when no layer/frame data can be read.
 - Optional, user-initiated Root session. A setting can attempt foreground auto-restore when the app is opened; it still needs Root-manager approval and never boots or requests root in the background. The tested implementation uses a one-shot fixed `su -c` command with a compact read-only allowlist, not an arbitrary shell. It is device/ROM/Root-manager dependent.
 - After a separate confirmation, Root can grant this app only: notification permission, overlay app-op, battery-optimization whitelist and Bluetooth-connect permission.
 - Opt-in local battery history, real-history chart, seven-day/50,000-row limits, CSV export through the system document picker.

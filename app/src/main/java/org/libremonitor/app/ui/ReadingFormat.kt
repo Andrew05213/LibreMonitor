@@ -59,6 +59,7 @@ internal fun currentQuantity(value: Double): Quantity = Quantity(ReadingFormat.n
 internal fun powerQuantity(value: Double): Quantity = Quantity(ReadingFormat.number(value, 2), "W")
 internal fun capacityQuantity(value: Double): Quantity = Quantity(ReadingFormat.number(value, 0), "mAh")
 internal fun cycleQuantity(value: Long): Quantity = Quantity(value.toString(), "次")
+internal fun fpsQuantity(value: Double): Quantity = Quantity(ReadingFormat.number(value), "fps")
 internal fun frequencyQuantity(value: Long): Quantity = Quantity(value.toString(), "MHz")
 internal fun frequencyQuantity(value: Double): Quantity = Quantity(ReadingFormat.number(value, 0), "MHz")
 internal fun bytesQuantity(value: Long): Quantity =

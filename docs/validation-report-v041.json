@@ -1,0 +1,33 @@
+{
+  "version": "0.4.1-dev",
+  "version_code": 13,
+  "application_id": "org.libremonitor.app",
+  "feature": "SurfaceFlinger FPS and 1% low in dashboard and overlay",
+  "build": {
+    "command": "bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug",
+    "result": "BUILD SUCCESSFUL"
+  },
+  "junit": {
+    "core": {"tests": 77, "failures": 0, "errors": 0, "skipped": 0},
+    "app_debug_unit": {"tests": 38, "failures": 0, "errors": 0, "skipped": 0},
+    "total": 115
+  },
+  "lint": {"errors": 0, "warnings": 8},
+  "apk": {
+    "sha256": "ef2fbb8a6bd07c3d9eec11c295d619416366892d0c3c446a488c9fcaf605c0c1",
+    "signing": "debug only"
+  },
+  "fps": {
+    "source": "SurfaceFlinger --latency for the focused package's top visible layer",
+    "fps": "1e9 / mean actual-present frame interval",
+    "one_percent_low": "1e9 / mean of the slowest 1% frame intervals",
+    "unavailable": "no Root, no resolvable foreground layer, or fewer than 2 valid frame intervals",
+    "not_refresh_rate": true
+  },
+  "not_verified": [
+    "FPS/1% low on a real device in this session",
+    "SurfaceFlinger --list/layer-name compatibility across ROMs",
+    "SurfaceView/Vulkan game coverage and multi-window edge cases",
+    "CI for the 0.4.1 commit"
+  ]
+}

@@ -407,6 +407,14 @@ private fun OverviewPage(
         )
     }
     BluetoothSection(state, actions, stamp, onDetail)
+    SectionCard("帧率", Icons.Rounded.Speed) {
+        MiniPair(
+            tile("FPS", snapshot.fps.fps, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, stamp, Icons.Rounded.Speed),
+            tile("1% low", snapshot.fps.onePercentLow, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, stamp, Icons.Rounded.Speed),
+            onDetail,
+        )
+        InfoRow("前台图层", snapshot.fps.target.validValue { it.isNotBlank() } ?: "未定位到可测图层")
+    }
     SectionCard("存储", Icons.Rounded.Storage) {
         MiniPair(
             tile("可用空间", snapshot.storage.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Storage),
@@ -905,7 +913,7 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent:
         DeviceRows(state.device)
     }
     SectionCard("关于", Icons.Rounded.Info) {
-        InfoRow("版本", "0.4.0-dev")
+        InfoRow("版本", "0.4.1-dev")
         InfoRow("许可证", "Apache-2.0")
         InfoRow("网络", "无联网权限")
     }

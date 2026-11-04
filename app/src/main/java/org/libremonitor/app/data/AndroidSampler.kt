@@ -80,6 +80,9 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         val networkSample = isolate({ network.sample() }, network::failure)
         val storageSample = isolate({ StorageCollector.sample(context) }, StorageCollector::failure)
         val bluetoothSample = isolate({ BluetoothCollector.sample(context) }, { org.libremonitor.core.BluetoothSample() })
+        val fpsSample = try { rootReader.readFps() } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) { null } ?: org.libremonitor.core.FpsSample()
         // A close/replacement during collection invalidates the whole privileged sample.
         // Re-read without privilege instead of publishing data from a revoked session.
         val completedAt = SystemClock.elapsedRealtime()
@@ -94,7 +97,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             val basicBattery = isolate({ AdvancedBatteryCollector.enrich(baseBattery, null) }, { baseBattery })
             val basicGpu = isolate({ GpuCollector.sample(null) }, { org.libremonitor.core.GpuSample() })
             return@withContext MonitorSnapshot(System.currentTimeMillis(), now, basicCpu, memorySample,
-                basicBattery, networkSample, storageSample, basicGpu, bluetoothSample)
+                basicBattery, networkSample, storageSample, basicGpu, bluetoothSample, fpsSample)
         }
         MonitorSnapshot(
             timestampEpochMillis = epoch,
@@ -106,6 +109,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             storage = storageSample,
             gpu = gpuSample,
             bluetooth = bluetoothSample,
+            fps = fpsSample,
         )
     }
 }

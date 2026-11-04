@@ -4,12 +4,12 @@ This is an independent Android monitoring app. Do not copy OpenMonitor code, bra
 
 ## Current scope
 
-- Current development version is `0.4.0-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
+- Current development version is `0.4.1-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
 - The UI is an icon-led dashboard. Primary cards show label, value and unit; provenance and failure explanations belong in details.
 - Bluetooth uses public APIs only. Do not fake core version, per-device RSSI or battery; permission-denied and unavailable states must remain explicit.
 - Root is optional and user-initiated. A settings opt-in may attempt foreground auto-restore once when the app opens; it must never run at boot, in the background, or after the user manually stopped Root. The tested backend is a one-shot fixed `su -c` command with a compact read-only allowlist. It must never expose arbitrary shell/path input, write kernel nodes, change SELinux, affect other apps, terminate processes, capture modem traffic, add analytics/internet, or auto-start at boot.
 - After a separate confirmation, Root may run fixed app-scoped commands for this app's notification permission, overlay app-op, battery-optimization whitelist and Bluetooth-connect permission. Do not expand this into a general privileged command API.
-- Shizuku, cross-app FPS, modem capture and widgets are unimplemented. Do not present them as available.
+- Shizuku, modem capture and widgets are unimplemented. FPS/1% low is a Root-dependent SurfaceFlinger best effort for the focused layer, not a universal game-FPS guarantee; show unavailable rather than a refresh-rate proxy.
 
 ## Data correctness
 

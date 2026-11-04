@@ -12,5 +12,7 @@ interface RootSession {
     suspend fun requestAuthorization(): Boolean
     suspend fun readFrame(): PrivilegedNodeFrame?
     suspend fun grantPermissions(): PermissionGrantResult
+    /** Best-effort foreground surface frame timing; null means not measured. */
+    suspend fun readFps(): org.libremonitor.core.FpsSample? = null
     fun close()
 }

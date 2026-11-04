@@ -226,10 +226,17 @@ class MonitorService : Service() {
             val available = m.availableBytes.value
             if (total != null && available != null && total > 0) number((total - available).toDouble() / total * 100, "%") else "不可用"
         }
+        val fpsText = if (snapshot.fps.fps.available) {
+            val fps = snapshot.fps.fps.value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"
+            val low = snapshot.fps.onePercentLow.value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"
+            "\nFPS $fps  1% low $low"
+        } else {
+            "\nFPS 不可用"
+        }
         return "CPU  ${number(snapshot.cpu.usagePercent.value, "%")}\n" +
             "内存 $memory\n" +
             "电量 ${snapshot.battery.levelPercent.value?.let { "$it%" } ?: "不可用"}  电池 ${number(snapshot.battery.temperatureC.value, "°C")}\n" +
-            "电池端 ${number(snapshot.battery.powerW.value, " W")}（估算）"
+            "电池端 ${number(snapshot.battery.powerW.value, " W")}（估算）" + fpsText
     }
 
     private fun openMainActivity() {

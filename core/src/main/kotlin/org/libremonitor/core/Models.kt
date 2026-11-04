@@ -88,6 +88,14 @@ data class NetworkSample(
 
 data class StorageSample(val totalBytes: Reading<Long>, val availableBytes: Reading<Long>)
 
+/** SurfaceFlinger frame timing for the foreground layer; not display refresh rate. */
+data class FpsSample(
+    val fps: Reading<Double> = Reading.unavailable("FPS", "Not sampled"),
+    val onePercentLow: Reading<Double> = Reading.unavailable("1% low", "Not sampled"),
+    val frameTimeMs: Reading<Double> = Reading.unavailable("Frame time", "Not sampled"),
+    val target: Reading<String> = Reading.unavailable("SurfaceFlinger", "Not sampled"),
+)
+
 /** Public-API Bluetooth view. RSSI/core version are deliberately unavailable when Android does not expose them. */
 data class BluetoothDeviceInfo(
     val name: String,
@@ -124,6 +132,7 @@ data class MonitorSnapshot(
     val storage: StorageSample,
     val gpu: GpuSample = GpuSample(),
     val bluetooth: BluetoothSample = BluetoothSample(),
+    val fps: FpsSample = FpsSample(),
 )
 
 data class DeviceInfo(

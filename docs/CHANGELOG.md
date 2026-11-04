@@ -2,6 +2,11 @@
 
 Dates are development dates; this is not a published release history.
 
+## 0.4.1-dev — 2026-11-04
+
+- Added FPS and 1% low from SurfaceFlinger frame timestamps for the focused package layer, shown in the dashboard and overlay. 1% low is the average of the slowest 1% frame intervals; unavailable when Root/layer data is missing.
+- Added frame-time parsing tests.
+
 ## 0.4.0-dev — 2026-11-04
 
 - Added a Bluetooth card using Android public APIs: adapter state/name/address, LE support, connected profile count, paired devices, classic/LE/dual type, Class/services and known profile UUID mapping.
