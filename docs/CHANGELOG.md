@@ -8,6 +8,7 @@ Dates are development dates; this is not a published release history.
 - Core Bluetooth version, per-device live RSSI and per-device battery are shown as unavailable when Android does not publicly expose them; no synthetic values.
 - Added `BLUETOOTH_CONNECT` runtime permission handling and included it in the confirmation-gated Root one-key grant.
 - Added explicit permission prompt/denial states and compact Bluetooth rows in the overview.
+- Added an opt-in “restore Root when the app opens” setting. It is foreground-only, runs at most once per process, is suppressed after manual Root stop, and still requires Root-manager approval.
 
 ## 0.3.1-dev — 2026-11-03
 

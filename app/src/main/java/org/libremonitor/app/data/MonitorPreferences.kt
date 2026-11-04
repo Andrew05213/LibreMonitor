@@ -51,6 +51,7 @@ class MonitorPreferences(context: Context) {
                 val next = when (command) {
                     is Command.SetHistory -> current.copy(historyEnabled = command.enabled)
                     is Command.SetSampleInterval -> current.copy(sampleIntervalMs = command.millis)
+                    is Command.SetAutoRestoreRoot -> current.copy(autoRestoreRoot = command.enabled)
                 }
                 if (next != current) {
                     persist(preferences, next)
@@ -70,6 +71,10 @@ class MonitorPreferences(context: Context) {
 
     fun setSampleIntervalMs(value: Long) {
         enqueue(Command.SetSampleInterval(value.coerceIn(1_000L, 10_000L)))
+    }
+
+    fun setAutoRestoreRoot(enabled: Boolean) {
+        enqueue(Command.SetAutoRestoreRoot(enabled))
     }
 
     fun close() {
@@ -101,6 +106,7 @@ class MonitorPreferences(context: Context) {
                 .coerceIn(10_000L, 3_600_000L),
             retentionDays = (values[RETENTION_DAYS] as? Int ?: defaults.retentionDays)
                 .coerceIn(1, 30),
+            autoRestoreRoot = values[AUTO_RESTORE_ROOT] as? Boolean ?: defaults.autoRestoreRoot,
         )
     }
 
@@ -108,7 +114,8 @@ class MonitorPreferences(context: Context) {
         values[HISTORY_ENABLED] == settings.historyEnabled &&
             values[SAMPLE_INTERVAL] == settings.sampleIntervalMs &&
             values[HISTORY_INTERVAL] == settings.historyIntervalMs &&
-            values[RETENTION_DAYS] == settings.retentionDays
+            values[RETENTION_DAYS] == settings.retentionDays &&
+            values[AUTO_RESTORE_ROOT] == settings.autoRestoreRoot
 
     private fun persist(preferences: SharedPreferences, settings: MonitorSettings) {
         // commit is deliberate: the IO worker orders writes, and close can drain them.
@@ -119,6 +126,7 @@ class MonitorPreferences(context: Context) {
             .putLong(SAMPLE_INTERVAL, settings.sampleIntervalMs)
             .putLong(HISTORY_INTERVAL, settings.historyIntervalMs)
             .putInt(RETENTION_DAYS, settings.retentionDays)
+            .putBoolean(AUTO_RESTORE_ROOT, settings.autoRestoreRoot)
             .commit()
         if (!saved) Log.w(LOG_TAG, "Monitor preferences could not be saved to private storage")
     }
@@ -126,6 +134,7 @@ class MonitorPreferences(context: Context) {
     private sealed interface Command {
         data class SetHistory(val enabled: Boolean) : Command
         data class SetSampleInterval(val millis: Long) : Command
+        data class SetAutoRestoreRoot(val enabled: Boolean) : Command
     }
 
     private companion object {
@@ -135,5 +144,6 @@ class MonitorPreferences(context: Context) {
         const val SAMPLE_INTERVAL = "sample_interval_ms"
         const val HISTORY_INTERVAL = "history_interval_ms"
         const val RETENTION_DAYS = "retention_days"
+        const val AUTO_RESTORE_ROOT = "auto_restore_root"
     }
 }

@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
                         runtime.refreshBluetoothPermission()
                     }
                 },
+                onAutoRestoreRootChange = runtime::setAutoRestoreRoot,
             ))
         }
     }

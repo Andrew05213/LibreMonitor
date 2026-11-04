@@ -160,6 +160,8 @@ data class MonitorSettings(
     val sampleIntervalMs: Long = 2_000L,
     val historyIntervalMs: Long = 60_000L,
     val retentionDays: Int = 7,
+    /** Foreground convenience only: still requires Root-manager authorization and never boots silently. */
+    val autoRestoreRoot: Boolean = false,
 ) {
     init {
         require(sampleIntervalMs in 1_000L..10_000L)

@@ -32,4 +32,5 @@ data class MonitorActions(
     val onRootDisable: () -> Unit = {},
     val onRootGrantPermissions: () -> Unit = {},
     val onBluetoothPermissionRequest: () -> Unit = {},
+    val onAutoRestoreRootChange: (Boolean) -> Unit = {},
 )

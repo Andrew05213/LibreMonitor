@@ -893,6 +893,13 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent:
         InfoRow("普通模式", "逐项检测")
         InfoRow("Shizuku", "未接入")
         RootControl(state, actions)
+        SwitchRow(
+            icon = Icons.Rounded.Refresh,
+            title = "打开应用时自动恢复 Root",
+            subtitle = "仅前台尝试，仍需 Root 管理器批准",
+            checked = state.settings.autoRestoreRoot,
+            onCheckedChange = actions.onAutoRestoreRootChange,
+        )
     }
     SectionCard("设备", Icons.Rounded.Smartphone) {
         DeviceRows(state.device)

@@ -5,13 +5,11 @@ Updated 2026-11-03. This is a development prototype, not a production or cross-d
 ## Current build
 
 - Version `0.4.0-dev`, versionCode `12`, application ID `org.libremonitor.app`.
-- Build: `bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`.
-- Result: **BUILD SUCCESSFUL**.
-- Tests: **77 core + 36 app JVM tests**, 0 failures, 0 errors, 0 skipped.
-- Android Lint: **0 errors, 7 warnings**, all newer-dependency suggestions; no baseline or suppression.
-- GitHub Actions: [run 41752692599](https://github.com/Andrew05213/LibreMonitor/actions/runs/41752692599) passed `Prepare SDK`, tests, debug assemble, lint and artifact upload for the 0.4.0 Bluetooth commit.
-- Debug APK SHA-256 `67cd9426b191460be00a22d85b7b17f417a6fccf024b469da0406a039058114e`; local deliverable `LibreMonitor-0.4.0-dev.apk`.
-- APK is debug-signed with the same development certificate used by earlier builds; no production signing exists.
+- Build command for the latest auto-restore commit: `bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:compileDebugKotlin :app:lintDebug` (no APK assembly by request).
+- Result: **BUILD SUCCESSFUL**. Tests: **77 core + 36 app JVM tests**, 0 failures/errors; Lint **0 errors, 8 warnings**.
+- Last packaged APK was the 0.4.0 Bluetooth build, SHA-256 `67cd9426b191460be00a22d85b7b17f417a6fccf024b469da0406a039058114e` (`LibreMonitor-0.4.0-dev.apk`). It predates the foreground auto-restore Root setting and was not repackaged for that commit.
+- GitHub Actions run [41752692599](https://github.com/Andrew05213/LibreMonitor/actions/runs/41752692599) passed for the Bluetooth commit. The auto-restore commit requires its own CI run.
+- APK is debug-signed with the development certificate; no production signing exists.
 
 ## Device smoke evidence
 
@@ -34,6 +32,7 @@ These are point-in-time smoke observations. They are not calibration data, not p
 - Bluetooth card using public APIs: adapter state/name/address, LE support, connected profile count, paired devices, type, Class/services, known profile mapping, and explicit unavailable reasons for RSSI/version/battery.
 - Optional Root session: one-shot `su -c` backend compatible with the tested KernelSU device; compact fixed read-only frame; explicit user confirmation; no arbitrary shell.
 - One-key permission grant after Root is active: notification permission, overlay app-op, battery-optimization whitelist and Bluetooth-connect permission, all app-scoped fixed commands.
+- Optional foreground Root auto-restore setting: attempts once per process when the app is opened, still requires Root-manager approval, and is suppressed after manual Root stop. No boot autostart or background request.
 - Opt-in battery history, foreground-service notification, draggable overlay, no internet permission, no boot receiver, no analytics.
 - SQLite schema version 1 and seven-column CSV preserved.
 

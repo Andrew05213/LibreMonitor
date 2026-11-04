@@ -45,6 +45,8 @@ class MonitorRuntime(private val context: Context) {
     private val sampler = AndroidSampler(context, rootReader)
     private var rootRequestGeneration = 0L
     private var rootRequestInFlight = false
+    private var autoRootAttempted = false
+    private var rootManuallyDisabled = false
     private val history = BatteryHistoryStore(context)
     private val preferences = MonitorPreferences(context)
     private val visible = MutableStateFlow(false)
@@ -77,6 +79,7 @@ class MonitorRuntime(private val context: Context) {
                         // Keep this process's explicit user intent; equal values are not queue acknowledgements.
                         mutableState.update { it.copy(settings = effective) }
                         reconcileService()
+                        maybeAutoRestoreRoot()
                     }
                 }
         }
@@ -121,7 +124,29 @@ class MonitorRuntime(private val context: Context) {
     fun setUiVisible(owner: Any, value: Boolean) {
         if (value) visibleOwners.add(owner) else visibleOwners.remove(owner)
         visible.value = visibleOwners.isNotEmpty()
-        if (value) reconcileService()
+        if (value) {
+            reconcileService()
+            maybeAutoRestoreRoot()
+        }
+    }
+
+    fun setAutoRestoreRoot(value: Boolean) {
+        mutableState.update { it.copy(settings = it.settings.copy(autoRestoreRoot = value)) }
+        try { preferences.setAutoRestoreRoot(value) }
+        catch (e: Exception) { reportError("无法保存自动恢复设置：${e.javaClass.simpleName}") }
+        if (value) {
+            autoRootAttempted = false
+            rootManuallyDisabled = false
+            maybeAutoRestoreRoot()
+        }
+    }
+
+    private fun maybeAutoRestoreRoot() {
+        if (autoRootAttempted || rootManuallyDisabled || !visible.value) return
+        if (!state.value.settings.autoRestoreRoot) return
+        if (rootReader.state.value.access == RootAccess.GRANTED) return
+        autoRootAttempted = true
+        requestRootInternal(auto = true)
     }
 
     fun setHistoryEnabled(value: Boolean) {
@@ -149,10 +174,15 @@ class MonitorRuntime(private val context: Context) {
         mutableState.update { it.copy(serviceRunning = value) }
     }
 
-    /** Called only from the foreground UI's explicit Root button. */
+    /** Called from the foreground UI's explicit Root button. */
     fun requestRoot() {
+        rootManuallyDisabled = false
+        requestRootInternal(auto = false)
+    }
+
+    private fun requestRootInternal(auto: Boolean) {
         if (!visible.value) {
-            reportError("请在应用前台主动请求 Root 授权。")
+            if (!auto) reportError("请在应用前台主动请求 Root 授权。")
             return
         }
         if (rootRequestInFlight || rootReader.state.value.access == RootAccess.REQUESTING) {
@@ -167,7 +197,10 @@ class MonitorRuntime(private val context: Context) {
                 val granted = rootReader.requestAuthorization()
                 if (generation == rootRequestGeneration && !granted) {
                     val detail = rootReader.state.value.message.ifBlank { "授权被拒绝或不可用" }
-                    reportError("Root 请求失败：$detail；基本采集仍可使用。")
+                    reportError(
+                        if (auto) "Root 自动恢复失败：$detail；可在设置中手动重试。"
+                        else "Root 请求失败：$detail；基本采集仍可使用。",
+                    )
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -181,6 +214,7 @@ class MonitorRuntime(private val context: Context) {
     fun disableRoot() {
         rootRequestGeneration++
         rootRequestInFlight = false
+        rootManuallyDisabled = true
         rootReader.close()
         mutableState.update { it.copy(rootState = rootReader.state.value) }
     }
