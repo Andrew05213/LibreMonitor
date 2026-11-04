@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package org.libremonitor.app.data.privileged
 
-import org.libremonitor.core.FpsSample
 import org.libremonitor.core.Reading
 import org.libremonitor.core.ReadingStatus
 import java.io.ByteArrayOutputStream
@@ -110,60 +109,7 @@ internal object RootProtocol {
             "printf 'LM:$id:END\\n'\n}\n"
     }
 
-    /**
-     * Fixed script: find the focused package, choose its top visible layer, then ask
-     * SurfaceFlinger for that layer's frame timestamps. Layer names are allowlisted
-     * before being passed to the shell.
-     */
-    fun fpsScript(id: String): String {
-        require(id.matches(Regex("[a-f0-9]{32}")))
-        return "{\nPATH=/system/bin:/system/xbin; export PATH\n" +
-            "printf 'FPSBEGIN\\n'\n" +
-            "focus=\u0024(dumpsys window 2>/dev/null | grep -m1 'mCurrentFocus=')\n" +
-            "pkg=\u0024(printf '%s\\n' \"\u0024focus\" | grep -oE '[A-Za-z0-9_.]+/[A-Za-z0-9_.]+' | head -1 | cut -d/ -f1)\n" +
-            "layer=\u0024(if [ -n \"\u0024pkg\" ]; then dumpsys SurfaceFlinger --list 2>/dev/null | grep -F \"\u0024pkg\" | grep -v -E 'Background|Dim|StatusBar|NavigationBar|Wallpaper' | tail -1; fi)\n" +
-            // Layer names commonly contain [] and spaces; reject shell-active characters only.
-            "if printf '%s' \"\u0024layer\" | grep -q '[\"\u0024`]'; then layer=; fi\n" +
-            "if [ -n \"\u0024layer\" ]; then printf 'FPSLAYER:%s\\n' \"\u0024layer\"; dumpsys SurfaceFlinger --latency \"\u0024layer\" 2>/dev/null; fi\n" +
-            "printf 'FPSEND\\n'\n}\n"
-    }
-
-    fun parseFps(output: String): FpsSample {
-        val lines = output.lines()
-        val begin = lines.indexOf("FPSBEGIN")
-        val end = lines.indexOf("FPSEND")
-        if (begin < 0 || end <= begin) return unavailableFps("SurfaceFlinger 未返回 FPS 数据")
-        val body = lines.subList(begin + 1, end)
-        val layer = body.firstOrNull { it.startsWith("FPSLAYER:") }
-            ?.removePrefix("FPSLAYER:")?.takeIf { it.isNotBlank() }
-        val times = body.mapNotNull { line ->
-            val fields = line.trim().split(Regex("\\s+"))
-            fields.getOrNull(1)?.toLongOrNull()?.takeIf { it > 0L }
-        }.sorted()
-        if (times.size < 2) return unavailableFps("前台图层没有可用的帧时间", layer)
-        val intervals = times.zipWithNext { a, b -> b - a }.filter { it in 1_000_000L..1_000_000_000L }
-        if (intervals.size < 2) return unavailableFps("帧时间样本不足", layer)
-        val mean = intervals.average()
-        val slowest = intervals.sortedDescending()
-        val lowCount = maxOf(1, kotlin.math.ceil(slowest.size * 0.01).toInt())
-        val lowMean = slowest.take(lowCount).average()
-        val source = "SurfaceFlinger --latency${layer?.let { " ($it)" } ?: ""}"
-        return FpsSample(
-            fps = Reading(1_000_000_000.0 / mean, source, reason = "按实际上屏帧时间计算"),
-            onePercentLow = Reading(1_000_000_000.0 / lowMean, source, reason = "最慢 1% 帧的平均帧率"),
-            frameTimeMs = Reading(mean / 1_000_000.0, source),
-            target = layer?.let { Reading(it, source) }
-                ?: Reading.unavailable(source, "未定位到前台图层"),
-        )
-    }
-
-    private fun unavailableFps(reason: String, layer: String? = null) = FpsSample(
-        fps = Reading.unavailable("SurfaceFlinger", reason),
-        onePercentLow = Reading.unavailable("SurfaceFlinger", reason),
-        frameTimeMs = Reading.unavailable("SurfaceFlinger", reason),
-        target = layer?.let { Reading(it, "SurfaceFlinger") }
-            ?: Reading.unavailable("SurfaceFlinger", "未定位到前台图层"),
-    )
+    fun fpsScript(id: String): String = FpsProtocol.script(id)
 
     fun readPermissionResults(input: InputStream, id: String): List<String> {
         val budget = Budget(4096)

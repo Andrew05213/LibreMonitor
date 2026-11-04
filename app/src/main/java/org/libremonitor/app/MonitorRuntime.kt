@@ -91,7 +91,8 @@ class MonitorRuntime(private val context: Context) {
                     while (currentCoroutineContext().isActive) {
                         try {
                             val snapshot = sampler.sample()
-                            mutableState.update { it.copy(snapshot = snapshot) }
+                            // Main-thread publication and disableRoot cannot interleave here.
+                            mutableState.update { it.copy(snapshot = snapshot.copy(fps = snapshot.fps.validatedFor(rootReader.state.value))) }
                             val settings = state.value.settings
                             val elapsed = snapshot.elapsedRealtimeMillis
                             val due = lastHistoryElapsed?.let { elapsed < it || elapsed - it >= settings.historyIntervalMs } ?: true
@@ -216,7 +217,10 @@ class MonitorRuntime(private val context: Context) {
         rootRequestInFlight = false
         rootManuallyDisabled = true
         rootReader.close()
-        mutableState.update { it.copy(rootState = rootReader.state.value) }
+        mutableState.update {
+            it.copy(rootState = rootReader.state.value,
+                snapshot = it.snapshot?.let { sample -> sample.copy(fps = sample.fps.validatedFor(rootReader.state.value)) })
+        }
     }
 
     /** Explicit user action: grant only this app's notification, overlay and battery-whitelist entries. */

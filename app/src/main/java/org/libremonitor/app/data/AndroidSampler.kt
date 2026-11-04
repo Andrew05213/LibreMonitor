@@ -80,12 +80,13 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         val networkSample = isolate({ network.sample() }, network::failure)
         val storageSample = isolate({ StorageCollector.sample(context) }, StorageCollector::failure)
         val bluetoothSample = isolate({ BluetoothCollector.sample(context) }, { org.libremonitor.core.BluetoothSample() })
-        val fpsSample = try { rootReader.readFps() } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        val fpsCandidate = try { rootReader.readFps() } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (_: Exception) { null } ?: org.libremonitor.core.FpsSample()
         // A close/replacement during collection invalidates the whole privileged sample.
         // Re-read without privilege instead of publishing data from a revoked session.
         val completedAt = SystemClock.elapsedRealtime()
+        val fpsSample = fpsCandidate.validatedFor(rootReader.state.value)
         if (frame != null && (completedAt < frame.sampledElapsedRealtimeMs ||
                 completedAt - frame.sampledElapsedRealtimeMs > 2_000L || rootReader.state.value.let {
                     it.access != RootAccess.GRANTED || it.sessionId != frame.sessionId
