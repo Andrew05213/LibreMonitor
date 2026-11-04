@@ -231,7 +231,7 @@ class MonitorService : Service() {
             val low = snapshot.fps.onePercentLow.value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"
             "\nFPS $fps  1% low $low"
         } else {
-            "\nFPS 不可用"
+            "\nFPS — ${snapshot.fps.fps.reason.orEmpty().take(48)}"
         }
         return "CPU  ${number(snapshot.cpu.usagePercent.value, "%")}\n" +
             "内存 $memory\n" +

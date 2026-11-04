@@ -1,6 +1,6 @@
 # Architecture
 
-Current as of 0.4.0-dev.
+Current as of 0.4.2-dev.
 
 ## Data path
 
@@ -37,6 +37,8 @@ The foreground freshness clock ticks only while the lifecycle is STARTED. Wall t
 - A frame has a bounded size, a completion marker and a monotonic read deadline. Timeout, truncation or a missing marker produces no frame rather than partial data.
 - Root permissions are limited to three fixed app-scoped commands after confirmation: notification grant, overlay app-op and battery-optimization whitelist. No arbitrary command/path API exists.
 - `RootReader` (persistent-shell implementation) remains for protocol tests and experiments, but `MonitorRuntime` uses `OneShotRootReader`.
+
+FPS uses the same operation mutex and sampling loop. `FpsProtocol` executes a fixed read-only discovery/probe script, normalizes Android 16+ debug wrappers, probes at most four foreground-package candidates, and decodes a nonce-delimited, bounded response. `FpsTracker` uses `System.nanoTime()` / CLOCK_MONOTONIC for SurfaceFlinger timestamps (not elapsedRealtime/boottime), rejects old or non-advancing history, and resets at Root-session changes. Long intervals are retained. Statistics cover only the recent available history, not a continuous benchmark; see [FPS.md](FPS.md). The two-second FPS process wait budget does not include the legacy transport's possible stream-join/cleanup delay.
 
 ## Time and cancellation
 
