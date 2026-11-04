@@ -5,7 +5,7 @@ Updated 2026-11-04. This is a development prototype, not a production or cross-d
 ## Current build
 
 - Version `0.4.2-dev`, versionCode `14`, application ID `org.libremonitor.app`.
-- Isolated host Kotlin/JVM validation passed **77 core + 57 app tests (134 total)**. Android framework calls in collector tests used host fixtures; the generated FPS script ran only against synthetic commands. No real Root command or phone operation was executed. See [FPS.md](FPS.md).
+- Isolated host Kotlin/JVM validation passed **81 core + 59 app tests (140 total)**. Android framework calls in collector tests used host fixtures; the generated FPS script ran only against synthetic commands. No real Root command or phone operation was executed. See [FPS.md](FPS.md).
 - Full Android unit tests, debug packaging and lint are checked by the branch's GitHub Actions workflow. Do not infer a phone validation result from these checks.
 - Prior 0.4.1 build/CI evidence remains in `validation-report-v041.json`; it is not evidence for the revised FPS implementation.
 - This fix has not been installed on the user's phone. Production signing and device FPS accuracy remain unverified.

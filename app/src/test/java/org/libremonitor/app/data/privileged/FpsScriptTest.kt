@@ -16,6 +16,15 @@ class FpsScriptTest {
         val fake = dir.resolve("dumpsys")
         fake.writeText("""
             #!/bin/sh
+            if [ "${'$'}1" = --help ]; then
+                [ "${'$'}MODE" = legacy ] || echo ' -T TIMEOUT_MS: timeout in milliseconds'
+                exit 0
+            fi
+            if [ "${'$'}MODE" = legacy ]; then
+                [ "${'$'}1 ${'$'}2" = '-t 1' ] || exit 20
+            else
+                [ "${'$'}1 ${'$'}2" = '-T 250' ] || exit 21
+            fi
             shift 2
             case "${'$'}1 ${'$'}2" in
             'window ')
@@ -72,6 +81,10 @@ class FpsScriptTest {
 
     @Test fun fallsBackToResumedActivityWhenFocusIsNull() {
         assertEquals("com.example", runFixture("activity").first.packageName)
+    }
+
+    @Test fun usesLegacyTimeoutWhenMillisecondFlagIsNotAdvertised() {
+        assertEquals(2, runFixture("legacy").first.layers.size)
     }
 
     @Test fun keepsShellCharactersInLayerNamesAsLiteralData() {

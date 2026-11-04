@@ -7,6 +7,9 @@ import java.util.Base64
 internal object FpsProtocol {
     const val MAX_CANDIDATES = 4
     const val MAX_LATENCY_BYTES = 24 * 1024
+    // At worst: window + activity fallback + layer list + four latency calls,
+    // each taking the legacy one-second timeout, plus process/protocol overhead.
+    const val PROCESS_TIMEOUT_MS = (MAX_CANDIDATES + 3) * 1_000L + 1_000L
     private val packageName = Regex("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+)+")
 
     data class Layer(val name: String, val timestamps: List<Long>, val failure: String? = null)
@@ -20,19 +23,24 @@ internal object FpsProtocol {
         return """
             {
             PATH=/system/bin:/system/xbin; export PATH
+            if dumpsys --help 2>&1 | grep -q -- '-T TIMEOUT_MS'; then
+                dump() { dumpsys -T 250 "${'$'}@"; }
+            else
+                dump() { dumpsys -t 1 "${'$'}@"; }
+            fi
             printf 'LM:$id:FPSBEGIN\n'
             printf 'LM:$id:UID:'; id -u
-            focus=${'$'}(dumpsys -t 1 window 2>/dev/null | grep -E 'mCurrentFocus=|mFocusedApp=' | head -8)
+            focus=${'$'}(dump window 2>/dev/null | grep -E 'mCurrentFocus=|mFocusedApp=' | head -8)
             pkg=${'$'}(printf '%s\n' "${'$'}focus" | grep 'mCurrentFocus=' | grep -oE '[A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.]+' | head -1 | cut -d/ -f1)
             if [ -z "${'$'}pkg" ]; then
                 pkg=${'$'}(printf '%s\n' "${'$'}focus" | grep -oE '[A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.]+' | head -1 | cut -d/ -f1)
             fi
             if [ -z "${'$'}pkg" ]; then
-                pkg=${'$'}(dumpsys -t 1 activity activities 2>/dev/null | grep -E 'topResumedActivity=|mResumedActivity:|ResumedActivity:' | grep -oE '[A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.]+' | head -1 | cut -d/ -f1)
+                pkg=${'$'}(dump activity activities 2>/dev/null | grep -E 'topResumedActivity=|mResumedActivity:|ResumedActivity:' | grep -oE '[A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.]+' | head -1 | cut -d/ -f1)
             fi
             printf 'LM:$id:PACKAGE:'; printf '%s' "${'$'}pkg" | base64 | tr -d '\n'; printf '\n'
             if [ -n "${'$'}pkg" ]; then
-                layers=${'$'}(dumpsys -t 1 SurfaceFlinger --list 2>/dev/null | head -c 131073 | sed \
+                layers=${'$'}(dump SurfaceFlinger --list 2>/dev/null | head -c 131073 | sed \
                     -e 's/^RequestedLayerState{//' -e 's/^\[[0-9][0-9]*\]//' \
                     -e 's/ parentId=.*${'$'}//' -e 's/ relativeParentId=.*${'$'}//' -e 's/ mirrorId=.*${'$'}//' \
                     -e 's/ !handle.*${'$'}//' -e 's/ z=.*${'$'}//' -e 's/ layerStack=.*${'$'}//' -e 's/}${'$'}//' \
@@ -44,7 +52,7 @@ internal object FpsProtocol {
                     [ "${'$'}{#layer}" -le 1024 ] || continue
                     printf 'LM:$id:LAYER:'; printf '%s' "${'$'}layer" | base64 | tr -d '\n'; printf '\n'
                     printf 'LM:$id:DATA:'
-                    dumpsys -t 1 SurfaceFlinger --latency "${'$'}layer" 2>&1 | head -c ${MAX_LATENCY_BYTES + 1} | base64 | tr -d '\n'
+                    dump SurfaceFlinger --latency "${'$'}layer" 2>&1 | head -c ${MAX_LATENCY_BYTES + 1} | base64 | tr -d '\n'
                     printf '\n'
                 done
             fi

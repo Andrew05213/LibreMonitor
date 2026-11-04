@@ -7,7 +7,7 @@ Dates are development dates; this is not a published release history.
 - Fix Android 16+ `RequestedLayerState{...}` / layer-ID wrappers before querying the exact SurfaceFlinger layer name. Probe up to four matching candidates, preferring SurfaceView/BLAST, with focused/resumed-activity fallback.
 - Validate Root identity, nonce, complete bounded output, actual-present timestamps, monotonic age and per-layer progress. Do not repeatedly present unchanged history as live FPS.
 - Preserve long frame intervals in FPS/1% low. Require 100 valid intervals for 1% low and explain its bounded recent-history window.
-- Reject FPS results from a closed/replaced Root session, reduce the FPS process wait budget to two seconds, and display explicit failure reasons in the dashboard and overlay.
+- Tag and reject FPS results from a closed/replaced Root session through Main-thread publication, use 250ms service timeouts when supported with an eight-second whole-operation fallback budget, and display explicit failure reasons in the dashboard and overlay.
 - Add synthetic command-fixture, parser/tracker and fake-process regressions. No phone install, real Root execution, calibration or device-performance claim accompanies this fix; see [FPS.md](FPS.md).
 
 ## 0.4.1-dev — 2026-11-04
@@ -61,5 +61,5 @@ Dates are development dates; this is not a published release history.
 
 - No production signing, release artifact or Play submission.
 - No cross-device compatibility matrix.
-- Shizuku, cross-app FPS, modem capture and widgets are not implemented.
+- Shizuku, modem capture and widgets are not implemented; game-FPS compatibility remains ROM-dependent.
 - CPU temperature and battery health remain source-dependent, not calibrated guarantees.
