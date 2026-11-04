@@ -1,9 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package org.libremonitor.app
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
@@ -56,6 +59,7 @@ class MonitorRuntime(private val context: Context) {
     private var historyGeneration = 0L
 
     init {
+        refreshBluetoothPermission()
         scope.launch {
             rootReader.state.collect { root -> mutableState.update { it.copy(rootState = root) } }
         }
@@ -105,6 +109,13 @@ class MonitorRuntime(private val context: Context) {
                     }
                 }
         }
+    }
+
+    fun refreshBluetoothPermission() {
+        val granted = Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(
+            context, Manifest.permission.BLUETOOTH_CONNECT,
+        ) == PackageManager.PERMISSION_GRANTED
+        mutableState.update { it.copy(bluetoothPermissionGranted = granted) }
     }
 
     fun setUiVisible(owner: Any, value: Boolean) {

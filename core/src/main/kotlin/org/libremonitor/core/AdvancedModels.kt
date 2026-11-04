@@ -21,7 +21,8 @@ data class PermissionGrantResult(
     val notifications: Boolean = false,
     val overlay: Boolean = false,
     val batteryOptimization: Boolean = false,
+    val bluetooth: Boolean = false,
     val message: String = "",
 ) {
-    val anyGranted: Boolean get() = notifications || overlay || batteryOptimization
+    val anyGranted: Boolean get() = notifications || overlay || batteryOptimization || bluetooth
 }

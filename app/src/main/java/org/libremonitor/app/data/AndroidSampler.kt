@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.libremonitor.app.data.collectors.BatteryCollector
 import org.libremonitor.app.data.collectors.AdvancedBatteryCollector
+import org.libremonitor.app.data.collectors.BluetoothCollector
 import org.libremonitor.app.data.collectors.GpuCollector
 import org.libremonitor.app.data.privileged.RootSession
 import org.libremonitor.core.RootAccess
@@ -78,6 +79,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         val gpuSample = isolate({ GpuCollector.sample(frame) }, { org.libremonitor.core.GpuSample() })
         val networkSample = isolate({ network.sample() }, network::failure)
         val storageSample = isolate({ StorageCollector.sample(context) }, StorageCollector::failure)
+        val bluetoothSample = isolate({ BluetoothCollector.sample(context) }, { org.libremonitor.core.BluetoothSample() })
         // A close/replacement during collection invalidates the whole privileged sample.
         // Re-read without privilege instead of publishing data from a revoked session.
         val completedAt = SystemClock.elapsedRealtime()
@@ -92,7 +94,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             val basicBattery = isolate({ AdvancedBatteryCollector.enrich(baseBattery, null) }, { baseBattery })
             val basicGpu = isolate({ GpuCollector.sample(null) }, { org.libremonitor.core.GpuSample() })
             return@withContext MonitorSnapshot(System.currentTimeMillis(), now, basicCpu, memorySample,
-                basicBattery, networkSample, storageSample, basicGpu)
+                basicBattery, networkSample, storageSample, basicGpu, bluetoothSample)
         }
         MonitorSnapshot(
             timestampEpochMillis = epoch,
@@ -103,6 +105,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             network = networkSample,
             storage = storageSample,
             gpu = gpuSample,
+            bluetooth = bluetoothSample,
         )
     }
 }

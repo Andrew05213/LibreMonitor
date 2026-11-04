@@ -105,13 +105,14 @@ internal object RootProtocol {
             "printf 'LM:$id:NOTIF:'; if /system/bin/pm grant $PACKAGE android.permission.POST_NOTIFICATIONS >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
             "printf 'LM:$id:OVERLAY:'; if /system/bin/appops set $PACKAGE SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
             "printf 'LM:$id:BATTERY:'; if /system/bin/dumpsys deviceidle whitelist +$PACKAGE >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
+            "printf 'LM:$id:BLUETOOTH:'; if /system/bin/pm grant $PACKAGE android.permission.BLUETOOTH_CONNECT >/dev/null 2>&1; then echo OK; else echo FAIL; fi\n" +
             "printf 'LM:$id:END\\n'\n}\n"
     }
 
     fun readPermissionResults(input: InputStream, id: String): List<String> {
         val budget = Budget(4096)
-        return List(4) { readLine(input, budget) }.also {
-            if (it[3] != "LM:$id:END") throw ProtocolException("missing permission end marker")
+        return List(5) { readLine(input, budget) }.also {
+            if (it[4] != "LM:$id:END") throw ProtocolException("missing permission end marker")
         }
     }
 

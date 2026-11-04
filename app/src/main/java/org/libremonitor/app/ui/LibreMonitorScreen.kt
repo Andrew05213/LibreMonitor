@@ -33,12 +33,15 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatteryFull
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeveloperBoard
+import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FileDownload
@@ -115,6 +118,8 @@ import kotlinx.coroutines.isActive
 import org.libremonitor.app.MonitorActions
 import org.libremonitor.app.MonitorUiState
 import org.libremonitor.core.BatterySample
+import org.libremonitor.core.BluetoothDeviceInfo
+import org.libremonitor.core.BluetoothSample
 import org.libremonitor.core.CpuSample
 import org.libremonitor.core.DeviceInfo
 import org.libremonitor.core.MemorySample
@@ -212,7 +217,7 @@ fun LibreMonitorScreen(state: MonitorUiState, actions: MonitorActions) {
                     state.error?.let { ErrorBanner(it, actions.onDismissError) }
                     key(selectedTab) {
                         when (selectedTab) {
-                            0 -> OverviewPage(state, accent) { detail = it }
+                            0 -> OverviewPage(state, actions, accent) { detail = it }
                             1 -> BatteryPage(state, actions, accent, { detail = it }) { confirmClear = true }
                             else -> SettingsPage(state, actions, accent) { confirmClear = true }
                         }
@@ -339,7 +344,12 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun OverviewPage(state: MonitorUiState, accent: Color, onDetail: (MetricDetail) -> Unit) {
+private fun OverviewPage(
+    state: MonitorUiState,
+    actions: MonitorActions,
+    accent: Color,
+    onDetail: (MetricDetail) -> Unit,
+) {
     val snapshot = state.snapshot
     if (snapshot == null) {
         HeroPlaceholder("CPU", Icons.Rounded.Speed)
@@ -396,6 +406,7 @@ private fun OverviewPage(state: MonitorUiState, accent: Color, onDetail: (Metric
             onDetail,
         )
     }
+    BluetoothSection(state, actions, stamp, onDetail)
     SectionCard("存储", Icons.Rounded.Storage) {
         MiniPair(
             tile("可用空间", snapshot.storage.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Storage),
@@ -409,6 +420,97 @@ private fun OverviewPage(state: MonitorUiState, accent: Color, onDetail: (Metric
                 tile("GPU 占用", snapshot.gpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Memory),
                 tile("GPU 频率", snapshot.gpu.frequencyMhz, ::frequencyQuantity, positiveDouble, stamp, Icons.Rounded.Speed),
                 onDetail,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BluetoothSection(
+    state: MonitorUiState,
+    actions: MonitorActions,
+    stamp: Long?,
+    onDetail: (MetricDetail) -> Unit,
+) {
+    val bluetooth = state.snapshot?.bluetooth ?: return
+    SectionCard("蓝牙", Icons.Rounded.Bluetooth) {
+        if (!state.bluetoothPermissionGranted) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.BluetoothDisabled, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("需要蓝牙权限才能读取适配器和已配对设备", style = MaterialTheme.typography.bodyMedium)
+            }
+            OutlinedButton(
+                onClick = actions.onBluetoothPermissionRequest,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Icon(Icons.Rounded.Bluetooth, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("授权蓝牙")
+            }
+            return@SectionCard
+        }
+        MiniPair(
+            tile("蓝牙状态", bluetooth.enabled, { Quantity(if (it) "开启" else "关闭", null) }, { true }, stamp, Icons.Rounded.Bluetooth),
+            tile("适配器状态", bluetooth.state, { Quantity(it, null) }, { it.isNotBlank() }, stamp, Icons.Rounded.Devices),
+            onDetail,
+        )
+        InfoRow("名称", bluetooth.name.validValue { it.isNotBlank() } ?: "—")
+        InfoRow("地址", bluetooth.address.validValue { it.isNotBlank() } ?: "—")
+        InfoRow("核心版本", bluetooth.version.validValue { it.isNotBlank() } ?: "系统未公开")
+        InfoRow("LE 支持", bluetooth.leSupported.validValue { true }?.let { if (it) "支持" else "不支持" } ?: "—")
+        InfoRow("已连接配置", bluetooth.connectedCount.validValue { it >= 0 }?.let { "$it 个 Profile" } ?: "—")
+        if (bluetooth.devices.isEmpty()) {
+            EmptyLine("—", "没有已配对设备")
+        } else {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Text("已配对设备 · ${bluetooth.devices.size}", style = MaterialTheme.typography.titleSmall)
+            bluetooth.devices.forEach { device -> BluetoothDeviceRow(device, stamp, onDetail) }
+        }
+    }
+}
+
+@Composable
+private fun BluetoothDeviceRow(device: BluetoothDeviceInfo, stamp: Long?, onDetail: (MetricDetail) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button) {
+                onDetail(
+                    MetricDetail(
+                        label = device.name,
+                        valueText = device.protocol,
+                        status = if (device.batteryPercent.available || device.rssiDbm.available) ReadingStatus.AVAILABLE else ReadingStatus.UNSUPPORTED,
+                        source = "BluetoothDevice / BluetoothClass / UUID",
+                        reason = "协议由设备类型、Class 服务和已知 UUID 映射；RSSI 需要扫描或 GATT 连接，Android 不提供已配对设备的实时 RSSI。",
+                        note = "类型 ${device.type} · ${device.bondState} · 主类 ${device.majorClass} · Class ${device.deviceClass}",
+                        sampledAtEpochMillis = stamp,
+                    ),
+                )
+            }
+            .padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Rounded.Devices, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Text(device.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(device.bondState, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            "${device.type} · ${device.protocol} · ${device.majorClass}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                "电量 ${device.batteryPercent.validValue { it in 0..100 }?.let { "$it%" } ?: "—"}",
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Text(
+                "信号 ${device.rssiDbm.validValue { it < 0 }?.let { "$it dBm" } ?: "—"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -796,7 +898,7 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent:
         DeviceRows(state.device)
     }
     SectionCard("关于", Icons.Rounded.Info) {
-        InfoRow("版本", "0.3.1-dev")
+        InfoRow("版本", "0.4.0-dev")
         InfoRow("许可证", "Apache-2.0")
         InfoRow("网络", "无联网权限")
     }
@@ -855,7 +957,7 @@ private fun RootControl(state: MonitorUiState, actions: MonitorActions) {
             ) {
                 Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(if (state.permissionGrantRunning) "正在授权…" else "一键授权通知、悬浮窗、电池白名单")
+                Text(if (state.permissionGrantRunning) "正在授权…" else "一键授权通知、悬浮窗、电池、蓝牙")
             }
             TextButton(onClick = actions.onRootDisable, modifier = Modifier.fillMaxWidth()) {
                 Text("停用 Root")
@@ -875,7 +977,7 @@ private fun RootControl(state: MonitorUiState, actions: MonitorActions) {
             onDismissRequest = { confirmGrant = false },
             title = { Text("一键授予所需权限？") },
             text = {
-                Text("通过现有 Root 会话仅对本应用执行固定命令：\n· 通知权限\n· 悬浮窗权限\n· 电池优化白名单\n\n不开放 shell，不修改其他应用或系统文件。")
+                Text("通过现有 Root 会话仅对本应用执行固定命令：\n· 通知权限\n· 悬浮窗权限\n· 电池优化白名单\n· 蓝牙连接权限\n\n不开放 shell，不修改其他应用或系统文件。")
             },
             confirmButton = {
                 TextButton(onClick = {

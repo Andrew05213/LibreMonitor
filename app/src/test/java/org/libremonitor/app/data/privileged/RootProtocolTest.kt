@@ -85,13 +85,14 @@ class RootProtocolTest {
         assertTrue(script.contains("pm grant org.libremonitor.app android.permission.POST_NOTIFICATIONS"))
         assertTrue(script.contains("appops set org.libremonitor.app SYSTEM_ALERT_WINDOW allow"))
         assertTrue(script.contains("dumpsys deviceidle whitelist +org.libremonitor.app"))
+        assertTrue(script.contains("android.permission.BLUETOOTH_CONNECT"))
         assertFalse(script.contains("eval"))
         assertFalse(script.contains("sh -c"))
         val input = frame(
-            "LM:$id:NOTIF:OK\nLM:$id:OVERLAY:FAIL\nLM:$id:BATTERY:OK\nLM:$id:END\n",
+            "LM:$id:NOTIF:OK\nLM:$id:OVERLAY:FAIL\nLM:$id:BATTERY:OK\nLM:$id:BLUETOOTH:OK\nLM:$id:END\n",
         )
         assertEquals(
-            listOf("LM:$id:NOTIF:OK", "LM:$id:OVERLAY:FAIL", "LM:$id:BATTERY:OK", "LM:$id:END"),
+            listOf("LM:$id:NOTIF:OK", "LM:$id:OVERLAY:FAIL", "LM:$id:BATTERY:OK", "LM:$id:BLUETOOTH:OK", "LM:$id:END"),
             RootProtocol.readPermissionResults(input, id),
         )
         try {

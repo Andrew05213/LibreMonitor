@@ -2,6 +2,13 @@
 
 Dates are development dates; this is not a published release history.
 
+## 0.4.0-dev — 2026-11-04
+
+- Added a Bluetooth card using Android public APIs: adapter state/name/address, LE support, connected profile count, paired devices, classic/LE/dual type, Class/services and known profile UUID mapping.
+- Core Bluetooth version, per-device live RSSI and per-device battery are shown as unavailable when Android does not publicly expose them; no synthetic values.
+- Added `BLUETOOTH_CONNECT` runtime permission handling and included it in the confirmation-gated Root one-key grant.
+- Added explicit permission prompt/denial states and compact Bluetooth rows in the overview.
+
 ## 0.3.1-dev — 2026-11-03
 
 - Redesigned the UI around icon-led metric cards, circular CPU/battery gauges, per-core bars and icon navigation.

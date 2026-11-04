@@ -105,19 +105,22 @@ class OneShotRootReader internal constructor(
             run(RootProtocol.permissionScript(id), authTimeoutMs)
         } ?: return@withLock PermissionGrantResult(message = "授权命令超时或失败")
         val lines = output.lineSequence().filter { it.startsWith("LM:$id:") }.toList()
-        if (lines.size < 4 || lines[3] != "LM:$id:END") {
+        if (lines.size < 5 || lines[4] != "LM:$id:END") {
             return@withLock PermissionGrantResult(message = "授权结果不完整")
         }
         val notifications = lines[0].endsWith(":OK")
         val overlay = lines[1].endsWith(":OK")
         val battery = lines[2].endsWith(":OK")
+        val bluetooth = lines[3].endsWith(":OK")
         PermissionGrantResult(
             notifications = notifications,
             overlay = overlay,
             batteryOptimization = battery,
+            bluetooth = bluetooth,
             message = "通知 " + (if (notifications) "已授予" else "未授予") +
                 " · 悬浮窗 " + (if (overlay) "已允许" else "未允许") +
-                " · 电池白名单 " + (if (battery) "已加入" else "未加入"),
+                " · 电池白名单 " + (if (battery) "已加入" else "未加入") +
+                " · 蓝牙 " + (if (bluetooth) "已授予" else "未授予"),
         )
     }
 

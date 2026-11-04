@@ -18,6 +18,7 @@ data class MonitorUiState(
     val rootState: RootState = RootState(),
     val permissionGrantRunning: Boolean = false,
     val permissionGrantMessage: String? = null,
+    val bluetoothPermissionGranted: Boolean = false,
 )
 
 data class MonitorActions(
@@ -30,4 +31,5 @@ data class MonitorActions(
     val onRootRequest: () -> Unit = {},
     val onRootDisable: () -> Unit = {},
     val onRootGrantPermissions: () -> Unit = {},
+    val onBluetoothPermissionRequest: () -> Unit = {},
 )

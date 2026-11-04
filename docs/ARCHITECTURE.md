@@ -1,6 +1,6 @@
 # Architecture
 
-Current as of 0.3.1-dev.
+Current as of 0.4.0-dev.
 
 ## Data path
 
@@ -21,6 +21,8 @@ public Android APIs + fixed readable proc/sysfs nodes
 `core` is pure Kotlin. A `Reading<T>` carries source, availability state, nullable value and reason. A zero is valid only when actually observed. A missing source is not simulated with app CPU, screen refresh rate, an arbitrary thermal zone or another unrelated proxy.
 
 ## UI
+
+Bluetooth uses Android public APIs only: `BluetoothManager`/`BluetoothAdapter` for adapter state, `bondedDevices` for paired devices, `BluetoothClass`/`BluetoothDevice` for type/Class/services and known UUID-to-profile mapping. `BLUETOOTH_CONNECT` is a runtime permission; without it the card offers an explicit authorization action. Core Bluetooth version, per-device live RSSI and per-device battery are not exposed reliably by the public API and remain `—`.
 
 The Compose UI is an icon-led dashboard. Primary cards show a label, a large value and its unit; source, status, failure reason and sample time are shown in a details bottom sheet. CPU has a circular gauge and per-core bars; battery has a circular gauge and metric cards. Material Rounded icons come from `androidx.compose.material:material-icons-extended`.
 

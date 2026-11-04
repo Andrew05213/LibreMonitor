@@ -8,7 +8,7 @@ Requirements: JDK17, Android SDK platform35 + build-tools35.0.0, internet for in
 ./gradlew --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
-The public GitHub Actions workflow has passed against the current 0.3.1 development tree. See the [actions run](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166). A green build is not a device-accuracy guarantee.
+The public GitHub Actions workflow passed for the 0.3.1 tree ([run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166)); the 0.4.0 commit requires its own run. A green build is not a device-accuracy guarantee.
 
 ## This phone: Ubuntu24.04 proot, aarch64
 
@@ -42,6 +42,6 @@ The helper's third-party aapt2 is not a Google official ARM64 release. Its check
 
 ## Output and installation
 
-Development output is `app/build/outputs/apk/debug/app-debug.apk`. The current debug APK is `0.3.1-dev`; its SHA-256 is recorded in [STATUS.md](STATUS.md). Compilation does not install an app. Install, notification/overlay permission, Root authorization and device smoke tests require a separate user action.
+Development output is `app/build/outputs/apk/debug/app-debug.apk`. The current debug APK is `0.4.0-dev`; its SHA-256 is recorded in [STATUS.md](STATUS.md). Compilation does not install an app. Install, notification/overlay permission, Root authorization and device smoke tests require a separate user action.
 
 No phone tests have been run unless explicitly listed in [STATUS.md](STATUS.md). CPU/GPU/temperature support must be tested per device, Android/ROM and permission mode, not inferred from build success.

@@ -42,6 +42,10 @@ class MainActivity : ComponentActivity() {
     private val createCsv = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) runtime.exportCsvTo(uri)
     }
+    private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        runtime.refreshBluetoothPermission()
+        if (!granted) runtime.reportError("未授予蓝牙权限，无法读取适配器和已配对设备。")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +72,15 @@ class MainActivity : ComponentActivity() {
                 onRootRequest = runtime::requestRoot,
                 onRootDisable = runtime::disableRoot,
                 onRootGrantPermissions = runtime::grantRootPermissions,
+                onBluetoothPermissionRequest = {
+                    if (Build.VERSION.SDK_INT >= 31 &&
+                        ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                    } else {
+                        runtime.refreshBluetoothPermission()
+                    }
+                },
             ))
         }
     }
@@ -77,7 +90,11 @@ class MainActivity : ComponentActivity() {
         outState.putBoolean("pending_overlay", pendingOverlay)
         super.onSaveInstanceState(outState)
     }
-    override fun onStart() { super.onStart(); runtime.setUiVisible(this, true) }
+    override fun onStart() {
+        super.onStart()
+        runtime.setUiVisible(this, true)
+        runtime.refreshBluetoothPermission()
+    }
     override fun onStop() { runtime.setUiVisible(this, false); super.onStop() }
     override fun onDestroy() { runtime.setUiVisible(this, false); super.onDestroy() }
 

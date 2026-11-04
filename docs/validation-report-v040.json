@@ -1,0 +1,32 @@
+{
+  "version": "0.4.0-dev",
+  "version_code": 12,
+  "application_id": "org.libremonitor.app",
+  "feature": "public-API Bluetooth adapter/device status card",
+  "build": {
+    "command": "bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug",
+    "result": "BUILD SUCCESSFUL"
+  },
+  "junit": {
+    "core": {"tests": 77, "failures": 0, "errors": 0, "skipped": 0},
+    "app_debug_unit": {"tests": 36, "failures": 0, "errors": 0, "skipped": 0},
+    "total": 113
+  },
+  "lint": {"errors": 0, "warnings": 8, "scope": "dependency version suggestions plus one intentional MissingPermission suppression around permission-gated Bluetooth device reads"},
+  "apk": {
+    "sha256": "67cd9426b191460be00a22d85b7b17f417a6fccf024b469da0406a039058114e",
+    "signing": "debug only"
+  },
+  "permissions_added": ["android.permission.BLUETOOTH (maxSdk30)", "android.permission.BLUETOOTH_CONNECT"],
+  "bluetooth": {
+    "adapter": "state/name/address/LE support/connected profile count are public-API reads",
+    "devices": "bonded devices with type, bond state, Class, service bits and known UUID/profile mapping",
+    "unavailable_by_design": ["core Bluetooth version", "per-device live RSSI", "per-device battery level"]
+  },
+  "not_verified": [
+    "Bluetooth permission and device list on a real device for 0.4.0",
+    "RSSI/version if Android or a vendor interface does not expose them",
+    "cross-device adapter/device behavior",
+    "CI for the 0.4.0 commit"
+  ]
+}

@@ -345,14 +345,17 @@ class RootReader internal constructor(
                 val notifications = lines[0].endsWith(":OK")
                 val overlay = lines[1].endsWith(":OK")
                 val battery = lines[2].endsWith(":OK")
+                val bluetooth = lines[3].endsWith(":OK")
                 PermissionGrantResult(
                     notifications = notifications,
                     overlay = overlay,
                     batteryOptimization = battery,
+                    bluetooth = bluetooth,
                     message = buildString {
                         append("通知 ").append(if (notifications) "已授予" else "未授予")
                         append(" · 悬浮窗 ").append(if (overlay) "已允许" else "未允许")
                         append(" · 电池白名单 ").append(if (battery) "已加入" else "未加入")
+                        append(" · 蓝牙 ").append(if (bluetooth) "已授予" else "未授予")
                     },
                 )
             } catch (_: TimeoutCancellationException) {

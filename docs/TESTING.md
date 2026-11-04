@@ -23,6 +23,7 @@ The OnePlus PJE110 / Android 17 / KernelSU smoke test confirmed the following on
 1. Install over the previous debug build; no network/root/location/storage/boot permission prompt should appear merely on launch.
 2. Open the dashboard; check CPU gauge, temperature, per-core rows, memory/Swap, network and storage.
 3. Enable Root through the in-app confirmation; verify the Root manager prompt and `已启用 · Root`. Deny/timeout once and confirm basic mode still samples.
+3a. Bluetooth: deny BLUETOOTH_CONNECT once and verify the card offers an authorization action; grant it and check adapter state, paired devices, type/Class/services and profile mapping. Confirm that RSSI/core version/battery show unavailable rather than invented values.
 4. Open battery; check level, voltage, current, power, temperature, health status, capacity health, design/full capacity, remaining charge, cycles and source. A real `0` is valid; missing data must be `—`.
 5. Tap metric cards; verify source/status/reason/sample time detail sheet. Do not expect a fabricated sample.
 6. Use the one-key permission grant; confirm the dialog lists notification/overlay/battery whitelist and that denial leaves the app usable. Revoke one permission and confirm the related function stops.

@@ -12,8 +12,8 @@ android {
         applicationId = "org.libremonitor.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.3.1-dev"
+        versionCode = 12
+        versionName = "0.4.0-dev"
     }
     buildFeatures { compose = true }
     compileOptions {

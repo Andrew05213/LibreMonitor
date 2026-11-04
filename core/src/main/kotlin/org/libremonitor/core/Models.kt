@@ -88,6 +88,32 @@ data class NetworkSample(
 
 data class StorageSample(val totalBytes: Reading<Long>, val availableBytes: Reading<Long>)
 
+/** Public-API Bluetooth view. RSSI/core version are deliberately unavailable when Android does not expose them. */
+data class BluetoothDeviceInfo(
+    val name: String,
+    val address: String?,
+    val type: String,
+    val bondState: String,
+    val deviceClass: String,
+    val majorClass: String,
+    val services: List<String>,
+    val protocol: String,
+    val batteryPercent: Reading<Int>,
+    val rssiDbm: Reading<Int>,
+)
+
+data class BluetoothSample(
+    val supported: Reading<Boolean> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val enabled: Reading<Boolean> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val name: Reading<String> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val address: Reading<String> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val state: Reading<String> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val leSupported: Reading<Boolean> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val connectedCount: Reading<Int> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val version: Reading<String> = Reading.unavailable("Bluetooth", "Not sampled"),
+    val devices: List<BluetoothDeviceInfo> = emptyList(),
+)
+
 data class MonitorSnapshot(
     val timestampEpochMillis: Long,
     val elapsedRealtimeMillis: Long,
@@ -97,6 +123,7 @@ data class MonitorSnapshot(
     val network: NetworkSample,
     val storage: StorageSample,
     val gpu: GpuSample = GpuSample(),
+    val bluetooth: BluetoothSample = BluetoothSample(),
 )
 
 data class DeviceInfo(
