@@ -84,6 +84,8 @@ data class NetworkSample(
     val uploadBytesPerSecond: Reading<Double>,
     val totalReceivedBytes: Reading<Long>,
     val totalSentBytes: Reading<Long>,
+    val bluetoothDownload: Reading<Double> = Reading.unavailable("Bluetooth PAN", "尚未采集"),
+    val bluetoothUpload: Reading<Double> = Reading.unavailable("Bluetooth PAN", "尚未采集"),
 )
 
 data class StorageSample(val totalBytes: Reading<Long>, val availableBytes: Reading<Long>)
@@ -117,6 +119,7 @@ data class BluetoothDeviceInfo(
     val protocol: String,
     val batteryPercent: Reading<Int>,
     val rssiDbm: Reading<Int>,
+    val earbudBattery: EarbudBattery? = null,
 )
 
 data class BluetoothSample(
@@ -129,6 +132,7 @@ data class BluetoothSample(
     val connectedCount: Reading<Int> = Reading.unavailable("Bluetooth", "Not sampled"),
     val version: Reading<String> = Reading.unavailable("Bluetooth", "Not sampled"),
     val devices: List<BluetoothDeviceInfo> = emptyList(),
+    val capabilities: Map<String, Reading<String>> = emptyMap(),
 )
 
 data class MonitorSnapshot(
@@ -142,6 +146,7 @@ data class MonitorSnapshot(
     val gpu: GpuSample = GpuSample(),
     val bluetooth: BluetoothSample = BluetoothSample(),
     val fps: FpsSample = FpsSample(),
+    val environment: EnvironmentSample = EnvironmentSample(),
 )
 
 data class DeviceInfo(
@@ -154,6 +159,7 @@ data class DeviceInfo(
     val screenWidthPx: Int,
     val screenHeightPx: Int,
     val refreshRateHz: Float,
+    val cpuIdentity: CpuIdentity = CpuIdentity(),
 )
 
 data class BatteryRecord(
@@ -180,6 +186,7 @@ data class MonitorSettings(
     val retentionDays: Int = 7,
     /** Foreground convenience only: still requires Root-manager authorization and never boots silently. */
     val autoRestoreRoot: Boolean = false,
+    val overlay: OverlayOptions = OverlayOptions(),
 ) {
     init {
         require(sampleIntervalMs in SAMPLE_INTERVAL_RANGE_MS)

@@ -13,6 +13,8 @@ interface RootSession {
     suspend fun readFrame(): PrivilegedNodeFrame?
     /** Fixed reduced frame for the overlay's aggregate CPU counter. */
     suspend fun readOverlayFrame(): PrivilegedNodeFrame? = readFrame()
+    /** Filtered read-only diagnostics, requested only by the visible dashboard. */
+    suspend fun readDiagnosticsFrame(): PrivilegedNodeFrame? = null
     suspend fun grantPermissions(): PermissionGrantResult
     /** Best-effort foreground surface frame timing; null means not measured. */
     suspend fun readFps(): org.libremonitor.core.FpsSample? = null

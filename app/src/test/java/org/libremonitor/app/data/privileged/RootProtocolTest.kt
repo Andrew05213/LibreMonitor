@@ -45,7 +45,7 @@ class RootProtocolTest {
             fail("arbitrary node accepted")
         } catch (_: IllegalArgumentException) { }
         val compact = RootProtocol.compactNodes()
-        assertEquals(1 + 8 + 64 + 26 + 3, compact.size)
+        assertEquals(2 + 8 + 64 + 26 + 3, compact.size)
         assertTrue(RootProtocol.frameScript(id, compact).contains("LM:$id:BEGIN"))
     }
 

@@ -1,6 +1,6 @@
 # Architecture
 
-Current as of 0.5.0-dev.
+Current as of 0.6.0-dev.
 
 ## Data path
 
@@ -24,15 +24,20 @@ public Android APIs + fixed readable proc/sysfs nodes
 
 Bluetooth uses Android public APIs only: `BluetoothManager`/`BluetoothAdapter` for adapter state, `bondedDevices` for paired devices, `BluetoothClass`/`BluetoothDevice` for type/Class/services and known UUID-to-profile mapping. `BLUETOOTH_CONNECT` is a runtime permission; without it the card offers an explicit authorization action. Core Bluetooth version, per-device live RSSI and per-device battery are not exposed reliably by the public API and remain `—`.
 
+An explicit 30s foreground BLE scan additionally decodes supported Apple proximity battery bins and advertisement RSSI, with a 60s expiry. Address equality is required to enrich a paired row; private addresses remain separate observations. No hidden API, audio codec guess, raw-packet persistence or background scan is used. The shared network collector derives Bluetooth PAN rates from `/proc/net/dev`; this does not measure headphone audio throughput.
+
 The Compose UI is an icon-led dashboard. Primary cards show a label, a large value and its unit; source, status, failure reason and sample time are shown in a details bottom sheet. CPU has a circular gauge and per-core bars; battery has a circular gauge and metric cards. Material Rounded icons come from `androidx.compose.material:material-icons-extended`.
 
 The foreground freshness clock ticks only while the lifecycle is STARTED. Wall time is used for display; freshness uses monotonic elapsed time.
+
+CPU DeviceInfo now contains exact SoC catalog identity and per-core ARM part/capacity metadata. The dashboard separates prime/performance/efficiency groups, explicit inference and unknown cores. `soc_catalog.tsv` reference counts never override unverified logical IDs. Overlay presentation is isolated in `FloatingPanel`: persisted field/order/layout/font/opacity options, physical edge docking, translucent arrow expansion, safe-inset/rotation constraints and a scroll container; it owns no sampling loop.
 
 ## Root backend
 
 `OneShotRootReader` is the current backend for the tested KernelSU device. Each operation runs one fixed `su -c` command; there is no interactive root shell. The user must explicitly enable Root in the foreground, and a separate confirmation is required before fixed app-scoped permission grants.
 
 - The fixed frame is defined by `RootProtocol.compactNodes()`: `/proc/stat`, eight cpufreq nodes, 32 thermal zones, battery/bms fields and KGSL nodes. This is a compact frame, not a promise that every device has the same cores/sensors.
+- 0.6.0 adds only the bounded `/proc/net/dev` interface counter (103 compact nodes). A separate fixed diagnostic profile filters `dumpsys wifi` to SoftAP state/count fields, has a 3s deadline, and is used only by the visible dashboard's 5s metadata cache. It never returns raw configurations/SSIDs/keys/client identities.
 - Identity verification requires actual UID 0 plus capability bits. It deliberately does not require a populated `uid_map`; the tested Android 17/KernelSU environment exposes an empty one.
 - A frame has a bounded size, a completion marker and a monotonic read deadline. Timeout, truncation or a missing marker produces no frame rather than partial data.
 - Root permissions are limited to four fixed app-scoped commands after confirmation: notification grant, overlay app-op, battery-optimization whitelist and Bluetooth-connect permission. No arbitrary command/path API exists.
@@ -64,7 +69,7 @@ History is off by default. If the process is stopped, no boot receiver/watchdog 
 
 Continuous monitoring uses a `specialUse` foreground service with an explicit on-device monitoring subtype and a persistent Stop action. It does not hold a wake lock. Notifications are checked centrally and while running; overlays need a separate system grant. Pending permission actions survive Activity recreation using saveable enums/flags rather than captured lambdas.
 
-No internet, phone-state, location, broad storage, package-query or boot-autostart permission is requested. Root is separately authorized and is not counted as an ordinary app permission. CSV uses the system document picker and serializes opening/truncating the selected URI as well as database export.
+No internet, broad storage, package-query or boot-autostart permission is requested. Optional phone-state and nearby-device/location permissions are requested only through the related manual buttons; no number/IMEI/cell/location-coordinate query is implemented. Normal network/Wi-Fi state permissions feed visible-dashboard metadata. Root is separately authorized and is not counted as an ordinary app permission. CSV uses the system document picker and serializes opening/truncating the selected URI as well as database export.
 
 ## Storage
 

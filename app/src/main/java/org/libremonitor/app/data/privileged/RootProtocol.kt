@@ -52,6 +52,7 @@ internal object RootProtocol {
         val result = ArrayList<Node>()
         fun file(path: String, limit: Int) { result.add(Node(path, limit, "head -c ${limit + 1} '$path'")) }
         file("/proc/stat", PROC_LIMIT)
+        file("/proc/net/dev", 65_536)
         for (i in 0 until 8) file("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_cur_freq", 256)
         for (i in 0 until 32) {
             file("/sys/class/thermal/thermal_zone$i/type", 128)
@@ -69,9 +70,16 @@ internal object RootProtocol {
         it.key == "/proc/stat" || it.key.startsWith("/sys/class/kgsl/")
     }
 
+    fun diagnosticNodes(): List<Node> {
+        val dollar = '$'
+        // Only three derived fields can leave the filter. Never emit SSIDs, keys or MACs.
+        val command = """/system/bin/dumpsys wifi | while IFS= read -r row; do case "${dollar}row" in "Dump of SoftApManager"*) ap=1; printf 'AP_BEGIN\n';; "Dump of "*) ap=0;; esac; if [ "${dollar}ap" = 1 ]; then case "${dollar}row" in "current StateMachine mode: StartedState") printf 'STATE=enabled\n';; "current StateMachine mode: IdleState") printf 'STATE=disabled\n';; "getConnectedClientList().size(): "*) count="${dollar}{row#*: }"; case "${dollar}count" in ''|*[!0-9]*) ;; *) printf 'CLIENTS=%s\n' "${dollar}count";; esac;; esac; fi; done | head -c 4097"""
+        return listOf(Node("wifi_status", 4096, command))
+    }
+
     fun frameScript(id: String, nodes: List<Node>): String {
         require(id.matches(Regex("[a-f0-9]{32}")))
-        require(nodes == overlayNodes() || nodes == compactNodes() || nodes == nodes())
+        require(nodes == overlayNodes() || nodes == compactNodes() || nodes == diagnosticNodes() || nodes == nodes())
         val script = StringBuilder()
         // The shell must consume the whole compound command before it can emit stdout;
         // otherwise writing a large script and then reading can deadlock on small pipes.

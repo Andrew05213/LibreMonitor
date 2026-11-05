@@ -12,6 +12,7 @@ bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug
 - `:app:testDebugUnitTest`: Root protocol framing/limits, compact allowlist, permission script/result parsing, identity probe, HAL/sysfs CPU temperature parsing, battery capacity/health parsing.
 - `:app:assembleDebug`: Kotlin/Compose compile, manifest merge, Android resource pipeline, D8 and debug packaging/signing.
 - `:app:lintDebug`: Android/manifest/API lint; no baseline or suppression merely to hide a failure.
+- Device extensions: exact SoC/catalog/ARM-part checks; overlay settings/order/bounds and docking geometry; malformed/duplicate Apple advertisement structures and battery bins; PAN baselines/resets; and a shell fixture verifying SoftAP filtering excludes SSID/key/address and unrelated managers.
 - GitHub Actions runs the same Gradle tasks on Ubuntu. Current evidence: [run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166).
 
 Current counts and build evidence are in [STATUS.md](STATUS.md). Android persistence coverage is in `PerformanceStoreTest`; it must be run on an authorized device/emulator with `./gradlew :app:connectedDebugAndroidTest`. A successful instrumentation-test compile is not a device test result.
@@ -35,6 +36,9 @@ The OnePlus PJE110 / Android 17 / KernelSU smoke test confirmed the following on
 12. Select 100ms, 200ms and 500ms; close/reopen and verify the selected choice persists. Measure actual start-to-start cadence with and without Root/FPS rather than assuming 10Hz from the setting.
 13. In Performance, name and start a session. Enter a game with the four-metric overlay, close the overlay while recording, then return and end/save. Check CPU/GPU/memory/FPS curves plus CPU/GPU frequency, signed power and temperature; missing data must not appear as zero.
 14. Lock/unlock while recording, stop via notification, revoke notifications, and kill/reopen. Check sampling pauses on screen-off, Stop blocks subsequent writes, interrupted sessions retain prior samples, and no performance session restarts automatically. Verify battery history/CSV independently.
+15. Drag and release at both edges, expand the arrow, long-press to collapse, move the collapsed handle, rotate/cross safe insets and enable many large-font fields. Confirm settings survive restart and recording continues after the panel closes.
+16. With AirPods Pro firmware, test explicit permission denial/approximate-only location/system-location-off, open/close case, rotated addresses, missing/expired battery bins and foreground exit. Confirm no by-name device association or background scan. Test real PAN transfers separately from A2DP audio.
+17. Compare SoC and core part identities against actual kernel output; do not infer core IDs from catalog counts. Verify data-radio/NSA labels, denied phone permission, hotspot versus local SoftAP, unsupported ROM output, and power/thermal fields. Ensure no sensitive Wi-Fi strings enter returned diagnostic frames.
 
 ## Still unverified
 

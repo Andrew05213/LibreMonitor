@@ -4,9 +4,11 @@ This is an independent Android monitoring app. Do not copy OpenMonitor code, bra
 
 ## Current scope
 
-- Current development version is `0.5.0-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
+- Current development version is `0.6.0-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
 - The UI is an icon-led dashboard. Primary cards show label, value and unit; provenance and failure explanations belong in details.
 - Bluetooth uses public APIs only. Do not fake core version, per-device RSSI or battery; permission-denied and unavailable states must remain explicit.
+- Earbud BLE scans are explicit, foreground-only, bounded to 30s and expire readings after 60s. Do not associate rotating addresses by name, or persist raw advertisements. Bluetooth PAN counters are not headphone audio throughput.
+- SoC names use exact catalog identifiers. Core types come from ARM part IDs or explicitly labeled capacity inference; do not map a marketing core-count template onto unverified logical CPU IDs.
 - Root is optional and user-initiated. A settings opt-in may attempt foreground auto-restore once when the app opens; it must never run at boot, in the background, or after the user manually stopped Root. The tested backend is a one-shot fixed `su -c` command with a compact read-only allowlist. It must never expose arbitrary shell/path input, write kernel nodes, change SELinux, affect other apps, terminate processes, capture modem traffic, add analytics/internet, or auto-start at boot.
 - After a separate confirmation, Root may run fixed app-scoped commands for this app's notification permission, overlay app-op, battery-optimization whitelist and Bluetooth-connect permission. Do not expand this into a general privileged command API.
 - Shizuku, modem capture and widgets are unimplemented. FPS/1% low is a Root-dependent SurfaceFlinger best effort for the focused layer, not a universal game-FPS guarantee; show unavailable rather than a refresh-rate proxy.
@@ -25,6 +27,7 @@ This is an independent Android monitoring app. Do not copy OpenMonitor code, bra
 - `core/` is pure Kotlin; `app/` owns public Android collectors, private persistence, the shared runtime, Compose UI, Root backend and foreground/overlay service.
 - `MonitorRuntime` is the single process-owned sampling loop. `OneShotRootReader` is the current Root backend; `RootReader` is retained for protocol tests/persistent-shell experiments.
 - Root frames use fixed allowlists. Current compact frame limits are in `RootProtocol.compactNodes()`; do not add caller-provided paths.
+- Dashboard-only Wi-Fi diagnostics run at most once per five-second cache window, with a fixed three-second deadline. Return only filtered SoftAP state/count fields, never raw dumps, SSIDs, keys or client identities.
 - SQLite schema version 1 and the seven-column CSV format are compatibility boundaries. Schema changes require an explicit migration.
 
 ## Validation

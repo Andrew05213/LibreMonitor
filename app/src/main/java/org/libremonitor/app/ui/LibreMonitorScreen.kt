@@ -367,7 +367,7 @@ private fun OverviewPage(
         return
     }
     val stamp = snapshot.timestampEpochMillis
-    CpuHero(snapshot.cpu, stamp, accent, onDetail)
+    CpuHero(snapshot.cpu, stamp, accent, onDetail, state.device?.cpuIdentity)
     MetricGrid(
         listOf(
             tile("CPU 温度", snapshot.cpu.temperatureC, ::temperatureQuantity, validTemperature, stamp, Icons.Rounded.Thermostat),
@@ -383,9 +383,7 @@ private fun OverviewPage(
         val count = maxOf(cpu.perCoreUsagePercent.size, cpu.frequenciesMhz.size, cpu.coreIds.size)
         if (count == 0) {
             EmptyLine("—", "系统未返回逐核读数")
-        } else {
-            repeat(count) { index -> CoreRow(cpu, index, stamp, onDetail) }
-        }
+        } else CpuCoreGroups(cpu, state.device?.cpuIdentity, stamp, onDetail)
     }
     SectionCard("内存 / Swap", Icons.Rounded.Memory) {
         UsageRow("内存已用", memoryUsedPercent(snapshot.memory), validPercent, stamp, onDetail, Icons.Rounded.Memory)
@@ -409,6 +407,8 @@ private fun OverviewPage(
         )
     }
     BluetoothSection(state, actions, stamp, onDetail)
+    EnvironmentSections(snapshot.environment, snapshot.timestampEpochMillis -
+        (snapshot.elapsedRealtimeMillis - snapshot.environment.sampledElapsedMillis).coerceAtLeast(0), actions, onDetail)
     SectionCard("帧率", Icons.Rounded.Speed) {
         MiniPair(
             tile("FPS", snapshot.fps.fps, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, stamp, Icons.Rounded.Speed),
@@ -466,13 +466,30 @@ private fun BluetoothSection(
         InfoRow("核心版本", bluetooth.version.validValue { it.isNotBlank() } ?: "系统未公开")
         InfoRow("LE 支持", bluetooth.leSupported.validValue { true }?.let { if (it) "支持" else "不支持" } ?: "—")
         InfoRow("已连接配置", bluetooth.connectedCount.validValue { it >= 0 }?.let { "$it 个 Profile" } ?: "—")
+        MiniPair(
+            tile("蓝牙 PAN 下载", state.snapshot!!.network.bluetoothDownload, ::rateQuantity, nonnegativeDouble, stamp, Icons.Rounded.ArrowDownward),
+            tile("蓝牙 PAN 上传", state.snapshot.network.bluetoothUpload, ::rateQuantity, nonnegativeDouble, stamp, Icons.Rounded.ArrowUpward), onDetail)
+        Text("仅统计蓝牙 PAN 网络接口；耳机音频链路没有通用公开吞吐计数。协议 UUID 代表能力，不代表当前编码或链路速率。",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        bluetooth.capabilities.forEach { (label, reading) ->
+            InfoRow(label, reading.value ?: "系统未公开（点设备查看协议能力）")
+        }
         if (bluetooth.devices.isEmpty()) {
             EmptyLine("—", "没有已配对设备")
         } else {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Text("已配对设备 · ${bluetooth.devices.size}", style = MaterialTheme.typography.titleSmall)
-            bluetooth.devices.forEach { device -> BluetoothDeviceRow(device, stamp, onDetail) }
+            val elapsed = foregroundElapsedTime()
+            bluetooth.devices.forEach { device ->
+                val observation = state.earbudObservations.firstOrNull { it.address.equals(device.address, true) &&
+                    elapsed - it.sampledElapsedMillis in 0..60_000 }
+                BluetoothDeviceRow(if (observation == null) device else device.copy(earbudBattery = observation.battery,
+                    rssiDbm = observation.rssi.takeIf { it in -127..20 }?.let { Reading(it, "匹配同一蓝牙地址的 BLE 广播") }
+                        ?: Reading.unavailable("BLE 广播", "RSSI 无效")),
+                    if (observation == null) stamp else System.currentTimeMillis() - (elapsed - observation.sampledElapsedMillis), onDetail)
+            }
         }
+        EarbudScanPanel(state, actions)
     }
 }
 
@@ -486,9 +503,11 @@ private fun BluetoothDeviceRow(device: BluetoothDeviceInfo, stamp: Long?, onDeta
                     MetricDetail(
                         label = device.name,
                         valueText = device.protocol,
-                        status = if (device.batteryPercent.available || device.rssiDbm.available) ReadingStatus.AVAILABLE else ReadingStatus.UNSUPPORTED,
-                        source = "BluetoothDevice / BluetoothClass / UUID",
-                        reason = "协议由设备类型、Class 服务和已知 UUID 映射；RSSI 需要扫描或 GATT 连接，Android 不提供已配对设备的实时 RSSI。",
+                        status = if (device.batteryPercent.available || device.rssiDbm.available ||
+                            device.earbudBattery?.let { it.left != null || it.right != null || it.case != null } == true) ReadingStatus.AVAILABLE else ReadingStatus.UNSUPPORTED,
+                        source = if (device.earbudBattery != null) "BluetoothClass / UUID + 同地址 Apple BLE 广播" else "BluetoothDevice / BluetoothClass / UUID",
+                        reason = if (device.earbudBattery != null) "电量为厂商广播的 10% 近似档位；只按相同蓝牙地址关联，缺失值不作为 0。"
+                            else "协议由设备类型、Class 服务和已知 UUID 映射；RSSI 需要扫描或 GATT 连接，Android 不提供已配对设备的实时 RSSI。",
                         note = "类型 ${device.type} · ${device.bondState} · 主类 ${device.majorClass} · Class ${device.deviceClass}",
                         sampledAtEpochMillis = stamp,
                     ),
@@ -511,7 +530,8 @@ private fun BluetoothDeviceRow(device: BluetoothDeviceInfo, stamp: Long?, onDeta
         )
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                "电量 ${device.batteryPercent.validValue { it in 0..100 }?.let { "$it%" } ?: "—"}",
+                device.earbudBattery?.let { "左约 ${it.left?.let { x -> "$x%" } ?: "—"} · 右约 ${it.right?.let { x -> "$x%" } ?: "—"} · 盒约 ${it.case?.let { x -> "$x%" } ?: "—"}" }
+                    ?: "电量 ${device.batteryPercent.validValue { it in 0..100 }?.let { "$it%" } ?: "—"}",
                 style = MaterialTheme.typography.labelSmall,
             )
             Text(
@@ -524,7 +544,91 @@ private fun BluetoothDeviceRow(device: BluetoothDeviceInfo, stamp: Long?, onDeta
 }
 
 @Composable
-private fun CpuHero(cpu: CpuSample, stamp: Long?, accent: Color, onDetail: (MetricDetail) -> Unit) {
+private fun CpuCoreGroups(cpu: CpuSample, identity: org.libremonitor.core.CpuIdentity?, stamp: Long?, onDetail: (MetricDetail) -> Unit) {
+    val count = maxOf(cpu.perCoreUsagePercent.size, cpu.frequenciesMhz.size, cpu.coreIds.size)
+    val known = identity?.cores.orEmpty().associateBy { it.id }
+    val groups = (0 until count).groupBy { index -> known[cpu.coreIds.getOrNull(index) ?: index]?.tier ?: org.libremonitor.core.CoreTier.UNKNOWN }
+    identity?.catalog?.let {
+        Text("型号库参考 · ${it.prime} 超大核 / ${it.performance} 性能核 / ${it.efficiency} 能效核",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    org.libremonitor.core.CoreTier.entries.forEach { tier ->
+        val indices = groups[tier].orEmpty()
+        if (tier == org.libremonitor.core.CoreTier.UNKNOWN && indices.isEmpty()) return@forEach
+        val color = when (tier) {
+            org.libremonitor.core.CoreTier.PRIME -> MaterialTheme.colorScheme.tertiary
+            org.libremonitor.core.CoreTier.PERFORMANCE -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.secondary
+        }
+        Surface(color = color.copy(alpha = 0.08f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("${tier.label} · ${indices.size}", color = color, fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleSmall)
+                if (indices.isEmpty()) Text("未识别到该类型的逻辑核心", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val descriptions = indices.mapNotNull { known[cpu.coreIds.getOrNull(it) ?: it] }.map { it.architecture ?: it.source }.distinct()
+                if (descriptions.isNotEmpty()) Text(descriptions.joinToString(" / "), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                indices.forEach { index -> CoreRow(cpu, index, stamp, onDetail) }
+            }
+        }
+    }
+    Text("逻辑核心按内核 CPU part 识别；容量分组会标明推断。型号库参考数量不强行映射到 CPU 编号。",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun EarbudScanPanel(state: MonitorUiState, actions: MonitorActions) {
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Text("AirPods 广播电量", style = MaterialTheme.typography.titleSmall)
+    Text(state.bluetoothScanMessage, style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+    OutlinedButton(onClick = if (state.bluetoothScanning) actions.onEarbudScanStop else actions.onEarbudScan) {
+        Text(if (state.bluetoothScanning) "停止扫描" else "扫描附近耳机电量")
+    }
+    val elapsed = foregroundElapsedTime()
+    state.earbudObservations.forEach { observation ->
+        val fresh = elapsed - observation.sampledElapsedMillis in 0..60_000
+        val battery = observation.battery
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("${battery.model} · ${observation.address.takeLast(5)}", fontWeight = FontWeight.Medium)
+            Text(if (!fresh) "广播已过期，请重新扫描" else {
+                fun level(value: Int?, charging: Boolean) = value?.let { "约 $it%${if (charging) " ⚡" else ""}" } ?: "—"
+                "左 ${level(battery.left, battery.leftCharging)} · 右 ${level(battery.right, battery.rightCharging)} · 盒 ${level(battery.case, battery.caseCharging)}"
+            }, style = MaterialTheme.typography.bodyMedium)
+            Text(if (fresh) "BLE RSSI ${observation.rssi.takeIf { it in -127..20 }?.let { "$it dBm" } ?: "—"} · ${(elapsed - observation.sampledElapsedMillis) / 1_000} 秒前" else "此读数不再作为当前电量显示",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    Text("10% 档位的厂商广播近似值；仅适配已识别的 AirPods / Pro 格式。随机地址不会仅凭名字自动关联到已配对设备。",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun EnvironmentSections(environment: org.libremonitor.core.EnvironmentSample, stamp: Long,
+    actions: MonitorActions, onDetail: (MetricDetail) -> Unit) {
+    var networkExpanded by rememberSaveable { mutableStateOf(false) }
+    var systemExpanded by rememberSaveable { mutableStateOf(false) }
+    if (environment.connectivity.isNotEmpty()) SectionCard("连接 / 移动网络 / 热点", Icons.Rounded.Wifi) {
+        val fields = environment.connectivity.entries.toList().let { if (networkExpanded) it else it.take(4) }
+        MetricGrid(fields.map { (label, reading) -> tile(label, reading, { Quantity(it, null) }, { it.isNotBlank() }, stamp, Icons.Rounded.Wifi) }, 2, onDetail)
+        TextButton(onClick = { networkExpanded = !networkExpanded }) { Text(if (networkExpanded) "收起详细网络字段" else "展开移动网络与热点字段") }
+        if (environment.connectivity["移动制式"]?.status == ReadingStatus.PERMISSION_DENIED) {
+            OutlinedButton(onClick = actions.onPhonePermissionRequest) { Text("授权电话状态以读取制式和信号") }
+        }
+    }
+    if (environment.system.isNotEmpty()) SectionCard("系统状态", Icons.Rounded.Smartphone) {
+        val fields = environment.system.entries.toList().let { if (systemExpanded) it else it.take(4) }
+        MetricGrid(fields.map { (label, reading) -> tile(label, reading, { Quantity(it, null) }, { it.isNotBlank() }, stamp, Icons.Rounded.Smartphone) }, 2, onDetail)
+        TextButton(onClick = { systemExpanded = !systemExpanded }) { Text(if (systemExpanded) "收起系统字段" else "展开省电 / 热状态等字段") }
+        Text("系统与连接状态最多每 5 秒更新；点击字段可查看来源与不可用原因。", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun CpuHero(cpu: CpuSample, stamp: Long?, accent: Color, onDetail: (MetricDetail) -> Unit,
+    identity: org.libremonitor.core.CpuIdentity? = null) {
     val tile = tile("CPU 占用", cpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Speed)
     Card(
         modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onDetail(tile.detail) },
@@ -541,6 +645,12 @@ private fun CpuHero(cpu: CpuSample, stamp: Long?, accent: Color, onDetail: (Metr
                     Icon(Icons.Rounded.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     Text("CPU", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
+                Text(identity?.name?.value ?: "芯片型号待识别", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.clickable {
+                        identity?.let { onDetail(MetricDetail("CPU 型号", it.name.value, it.name.status,
+                            it.name.source, it.name.reason, "系统标识：${it.rawModel}", stamp)) }
+                    })
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         tile.quantity?.value ?: "—",
@@ -870,6 +980,7 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent:
             checked = state.overlayEnabled,
             onCheckedChange = { actions.onOverlayToggle() },
         )
+        OverlayCustomization(state.settings.overlay, actions.onOverlayOptionsChange)
     }
     SectionCard("电池记录", Icons.Rounded.History) {
         SwitchRow(

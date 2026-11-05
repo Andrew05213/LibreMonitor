@@ -6,16 +6,19 @@ import android.os.SystemClock
 import org.libremonitor.core.CounterRate
 import org.libremonitor.core.NetworkSample
 import org.libremonitor.core.Reading
+import org.libremonitor.core.PrivilegedNodeFrame
+import org.libremonitor.core.BluetoothPanRates
 
 /** Aggregate device counters, not a process/UID scan, packet capture or active network probe. */
 internal class NetworkCollector {
     private data class Baseline(val bytes: Long, val elapsedMillis: Long)
     private var previousRx: Baseline? = null
     private var previousTx: Baseline? = null
+    private val pan = BluetoothPanRates()
 
-    fun resetBaseline() { previousRx = null; previousTx = null }
+    fun resetBaseline() { previousRx = null; previousTx = null; pan.reset() }
 
-    fun sample(): NetworkSample {
+    fun sample(frame: PrivilegedNodeFrame? = null): NetworkSample {
         val rxSource = "TrafficStats.getTotalRxBytes（系统累计字节，非本应用流量）"
         val txSource = "TrafficStats.getTotalTxBytes（系统累计字节，非本应用流量）"
         val received = counter(rxSource) { TrafficStats.getTotalRxBytes() }
@@ -28,7 +31,11 @@ internal class NetworkCollector {
         // On failure clear the baseline; on reset adopt the new counter but emit no rate.
         previousRx = received.value?.let { Baseline(it, rxTime) }
         previousTx = sent.value?.let { Baseline(it, txTime) }
-        return NetworkSample(download, upload, received, sent)
+        val root = frame?.readings?.get("/proc/net/dev")?.takeIf { it.available }?.let {
+            it.copy(source = "Root ${frame.sessionId} /proc/net/dev")
+        }
+        val pair = pan.sample(root ?: readBounded("/proc/net/dev", 65_536), SystemClock.elapsedRealtime())
+        return NetworkSample(download, upload, received, sent, pair.first, pair.second)
     }
 
     private fun counter(source: String, read: () -> Long): Reading<Long> = safely(source) {

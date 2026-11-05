@@ -2,6 +2,15 @@
 
 Dates are development dates; this is not a published release history.
 
+## 0.6.0-dev — 2026-11-05
+
+- Added physical left/right edge docking with translucent semicircular arrows, tap-to-expand, draggable handles, long-press collapse, rotation/inset clamping, and scrolling for large custom layouts.
+- Added persisted overlay content/order, 12 selectable fields, one/two columns, 12–24sp values, 30–100% background opacity and optional edge snapping. Custom detail/network fields use the existing shared sampling loop.
+- Added an exact-identifier TSV SoC catalog (seven families), Snapdragon names and three core tiers from ARM part IDs; capacity inference and unknown identities stay explicit.
+- Added Bluetooth PAN byte-counter rates from a fixed `/proc/net/dev` read (not audio throughput), additional public protocol/PHY capabilities, and an explicit 30-second foreground Apple proximity scan. Supported battery bins expire after 60s and are not associated by device name.
+- Added optional phone-state grants, default connectivity/carrier/SIM/data-radio fields, Wi-Fi/hotspot capabilities, and system idle/power/thermal/kernel fields. Visible-dashboard state uses a five-second cache. A separate fixed Root diagnostic filters only SoftAP state/client-count fields, with a three-second deadline and no raw SSID/key/client output.
+- New runtime permissions are requested only through the related manual actions. No location/IMEI/phone-number query, internet permission, packet capture or background BLE scan was added. See [DEVICE_EXTENSIONS.md](DEVICE_EXTENSIONS.md).
+
 ## 0.5.0-dev — 2026-11-05
 
 - Published as a debug-signed [development prerelease](https://github.com/Andrew05213/LibreMonitor/releases/tag/v0.5.0-dev), with APK, checksum and local validation report.

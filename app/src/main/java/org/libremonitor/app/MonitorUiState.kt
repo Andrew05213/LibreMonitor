@@ -27,6 +27,9 @@ data class MonitorUiState(
     val performanceSessions: List<PerformanceSession> = emptyList(),
     val performanceReview: PerformanceReview? = null,
     val performanceReviewLoading: Boolean = false,
+    val earbudObservations: List<org.libremonitor.core.EarbudObservation> = emptyList(),
+    val bluetoothScanning: Boolean = false,
+    val bluetoothScanMessage: String = "手动扫描附近耳机广播；不维持后台扫描。",
 )
 
 data class MonitorActions(
@@ -44,4 +47,8 @@ data class MonitorActions(
     val onPerformanceStart: (String) -> Unit = {},
     val onPerformanceStop: () -> Unit = {},
     val onPerformanceReview: (Long) -> Unit = {},
+    val onOverlayOptionsChange: (org.libremonitor.core.OverlayOptions) -> Unit = {},
+    val onEarbudScan: () -> Unit = {},
+    val onEarbudScanStop: () -> Unit = {},
+    val onPhonePermissionRequest: () -> Unit = {},
 )

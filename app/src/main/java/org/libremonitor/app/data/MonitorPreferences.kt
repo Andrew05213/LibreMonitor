@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.libremonitor.core.MonitorSettings
+import org.libremonitor.core.OverlayOptions
 
 /**
  * Defaults are available immediately. Loading and all writes run in one IO worker.
@@ -52,6 +53,7 @@ class MonitorPreferences(context: Context) {
                     is Command.SetHistory -> current.copy(historyEnabled = command.enabled)
                     is Command.SetSampleInterval -> current.copy(sampleIntervalMs = command.millis)
                     is Command.SetAutoRestoreRoot -> current.copy(autoRestoreRoot = command.enabled)
+                    is Command.SetOverlay -> current.copy(overlay = command.options)
                 }
                 if (next != current) {
                     persist(preferences, next)
@@ -76,6 +78,8 @@ class MonitorPreferences(context: Context) {
     fun setAutoRestoreRoot(enabled: Boolean) {
         enqueue(Command.SetAutoRestoreRoot(enabled))
     }
+
+    fun setOverlayOptions(options: OverlayOptions) { enqueue(Command.SetOverlay(options)) }
 
     fun close() {
         synchronized(lifecycleLock) {
@@ -107,6 +111,7 @@ class MonitorPreferences(context: Context) {
             retentionDays = (values[RETENTION_DAYS] as? Int ?: defaults.retentionDays)
                 .coerceIn(1, 30),
             autoRestoreRoot = values[AUTO_RESTORE_ROOT] as? Boolean ?: defaults.autoRestoreRoot,
+            overlay = OverlayOptions.decode(values),
         )
     }
 
@@ -115,7 +120,10 @@ class MonitorPreferences(context: Context) {
             values[SAMPLE_INTERVAL] == settings.sampleIntervalMs &&
             values[HISTORY_INTERVAL] == settings.historyIntervalMs &&
             values[RETENTION_DAYS] == settings.retentionDays &&
-            values[AUTO_RESTORE_ROOT] == settings.autoRestoreRoot
+            values[AUTO_RESTORE_ROOT] == settings.autoRestoreRoot && OverlayOptions.decode(values) == settings.overlay &&
+            values["overlay_metrics"] == settings.overlay.metrics.joinToString(",") { it.name } &&
+            values["overlay_columns"] == settings.overlay.columns && values["overlay_opacity"] == settings.overlay.opacityPercent &&
+            values["overlay_text_size"] == settings.overlay.textSizeSp && values["overlay_edge_snap"] == settings.overlay.edgeSnap
 
     private fun persist(preferences: SharedPreferences, settings: MonitorSettings) {
         // commit is deliberate: the IO worker orders writes, and close can drain them.
@@ -127,6 +135,11 @@ class MonitorPreferences(context: Context) {
             .putLong(HISTORY_INTERVAL, settings.historyIntervalMs)
             .putInt(RETENTION_DAYS, settings.retentionDays)
             .putBoolean(AUTO_RESTORE_ROOT, settings.autoRestoreRoot)
+            .putString("overlay_metrics", settings.overlay.metrics.joinToString(",") { it.name })
+            .putInt("overlay_columns", settings.overlay.columns)
+            .putInt("overlay_opacity", settings.overlay.opacityPercent)
+            .putInt("overlay_text_size", settings.overlay.textSizeSp)
+            .putBoolean("overlay_edge_snap", settings.overlay.edgeSnap)
             .commit()
         if (!saved) Log.w(LOG_TAG, "Monitor preferences could not be saved to private storage")
     }
@@ -135,6 +148,7 @@ class MonitorPreferences(context: Context) {
         data class SetHistory(val enabled: Boolean) : Command
         data class SetSampleInterval(val millis: Long) : Command
         data class SetAutoRestoreRoot(val enabled: Boolean) : Command
+        data class SetOverlay(val options: OverlayOptions) : Command
     }
 
     private companion object {

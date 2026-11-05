@@ -54,7 +54,7 @@ internal object BluetoothCollector {
         val name = safe { adapter.name }?.takeIf { it.isNotBlank() }
             ?.let { Reading(it, "$SOURCE:name") }
             ?: Reading.unavailable("$SOURCE:name", "系统未提供蓝牙名称")
-        val address = safe { adapter.address }?.takeIf { it.isNotBlank() }
+        val address = safe { adapter.address }?.takeIf { it.isNotBlank() && it != "02:00:00:00:00:00" }
             ?.let { Reading(it, "$SOURCE:address") }
             ?: Reading.unavailable("$SOURCE:address", "系统未公开蓝牙地址")
         val bonded = if (!enabled) {
@@ -84,6 +84,13 @@ internal object BluetoothCollector {
             connectedCount = Reading(connectedProfiles, "$SOURCE:已连接配置文件数"),
             version = BluetoothVersion(),
             devices = devices,
+            capabilities = mapOf(
+                "LE 2M PHY 能力" to (safe { adapter.isLe2MPhySupported }?.let { Reading(if (it) "支持" else "不支持", "BluetoothAdapter 公共 PHY 能力；不代表实时速率") }
+                    ?: Reading.unavailable("BluetoothAdapter", "能力读取失败")),
+                "LE Coded PHY 能力" to (safe { adapter.isLeCodedPhySupported }?.let { Reading(if (it) "支持" else "不支持", "BluetoothAdapter 公共 PHY 能力") }
+                    ?: Reading.unavailable("BluetoothAdapter", "能力读取失败")),
+                "当前音频编码" to Reading.unavailable("Android 公共蓝牙 API", "当前 AAC / SBC / aptX / LDAC 协商结果不向普通应用可靠公开；UUID 只说明协议能力"),
+            ),
         )
     }
 
@@ -192,6 +199,12 @@ internal object BluetoothCollector {
     }
 
     private fun uuidProtocol(value: String): String? = when (value.lowercase()) {
+        "0000180f-0000-1000-8000-00805f9b34fb" -> "BAS 电量服务"
+        "00001115-0000-1000-8000-00805f9b34fb" -> "PANU"
+        "00001116-0000-1000-8000-00805f9b34fb" -> "NAP"
+        "00001117-0000-1000-8000-00805f9b34fb" -> "GN"
+        "00001108-0000-1000-8000-00805f9b34fb", "00001112-0000-1000-8000-00805f9b34fb" -> "HSP"
+        "00000017-deca-fade-deca-deafdecacafe" -> "Apple 厂商服务（非标准 UUID）"
         "0000110a-0000-1000-8000-00805f9b34fb", "0000110b-0000-1000-8000-00805f9b34fb" -> "A2DP"
         "0000111e-0000-1000-8000-00805f9b34fb", "0000111f-0000-1000-8000-00805f9b34fb" -> "HFP"
         "0000110e-0000-1000-8000-00805f9b34fb", "0000110f-0000-1000-8000-00805f9b34fb" -> "AVRCP"

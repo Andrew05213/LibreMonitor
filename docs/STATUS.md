@@ -1,13 +1,22 @@
-# Current validation status — 0.5.0-dev
+# Current validation status — 0.6.0-dev
 
 Updated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
 
 ## Current build
 
-- Version `0.5.0-dev`, versionCode `15`, application ID `org.libremonitor.app`.
-- Debug-signed development prerelease: [v0.5.0-dev](https://github.com/Andrew05213/LibreMonitor/releases/tag/v0.5.0-dev), with APK, SHA-256 and the validation report.
-- Local offline validation passed **98 core + 78 app JVM tests (176 total)** with zero failures/errors/skips; debug APK packaging passed; Lint **0 errors, 1 existing HardwareIds warning**. The Android database instrumentation test compiled but was not executed. See [validation-report-performance-sessions.json](validation-report-performance-sessions.json) for the commands, lint counts and APK checksum. Previous 0.4.2 evidence below is historical.
+- Version `0.6.0-dev`, versionCode `16`, application ID `org.libremonitor.app`.
+- Final local offline validation passed **110 core + 79 app JVM tests (189 total)**, zero failures/errors/skips; debug packaging and Lint passed (**0 errors, 1 existing HardwareIds warning**). Android instrumentation tests compiled but were not executed. APK version/catalog/license assets and the previous development signer were checked. See [validation-report-v060.json](validation-report-v060.json). Historical 0.5.0 evidence remains in [validation-report-performance-sessions.json](validation-report-performance-sessions.json).
+- Debug prerelease: [v0.6.0-dev](https://github.com/Andrew05213/LibreMonitor/releases/tag/v0.6.0-dev), with APK, checksum and validation report.
+- Previous debug prerelease: [v0.5.0-dev](https://github.com/Andrew05213/LibreMonitor/releases/tag/v0.5.0-dev).
 - No phone installation, Android SQLite device test, gameplay capture, measured 10Hz throughput or overlay visual acceptance has been performed for this version.
+
+## Device extensions
+
+- Edge-docked translucent arrow and custom overlay content/order, columns, opacity and font size. Configuration persists; geometry is service-lifetime only. No new sampling loop.
+- Seven-family exact SoC catalog including Snapdragon 8 Gen 2, ARM-part core groups, explicit capacity inference/unknown identities.
+- Bluetooth PAN byte-counter rates, public protocol/PHY capabilities and optional foreground Apple proximity scanning. Current negotiated audio codec/core version remain unavailable; nearby batteries are coarse bins, not guessed paired-device values.
+- Public mobile/Wi-Fi/system state with optional phone permission; filtered Root SoftAP diagnostics run only on the visible five-second metadata cadence. No location/IMEI/phone-number query, packet capture or raw Wi-Fi output.
+- Phone/ROM/firmware support and gesture/rotation/permission behavior remain unverified. See [DEVICE_EXTENSIONS.md](DEVICE_EXTENSIONS.md).
 
 ## Performance sessions and overlay
 
@@ -20,7 +29,7 @@ Updated 2026-11-05. This is a development prototype, not a production or cross-d
 
 - Added 100ms, 200ms and 500ms refresh choices, retaining 1s, 2s (default), 5s and 10s. Saved settings accept 100ms–10s.
 - Live/overlay sampling targets the selected start-to-start interval by subtracting collection time. Slow reads may exceed that interval; samples do not overlap or catch up missed ticks. Background battery recording still defaults to 60s.
-- Settings boundary/cadence and recording-demand JVM regressions passed as part of the 176-test build above. No phone installation or measured 100ms throughput claim.
+- Settings boundary/cadence and recording-demand JVM regressions passed in prior 0.5.0 and are retained for 0.6.0. No phone installation or measured 100ms throughput claim.
 
 ## Historical 0.4.2 background optimization
 

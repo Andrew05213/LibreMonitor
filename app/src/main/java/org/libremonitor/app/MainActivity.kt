@@ -47,6 +47,13 @@ class MainActivity : ComponentActivity() {
         runtime.refreshBluetoothPermission()
         if (!granted) runtime.reportError("未授予蓝牙权限，无法读取适配器和已配对设备。")
     }
+    private val scanPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        runtime.startEarbudScan()
+    }
+    private val phonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        runtime.refreshEnvironmentPermissions()
+        if (!granted) runtime.reportError("未授予电话状态权限，移动制式和信号等字段保持不可用。")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +97,17 @@ class MainActivity : ComponentActivity() {
                 },
                 onPerformanceStop = { runtime.stopPerformanceRecording() },
                 onPerformanceReview = runtime::reviewPerformance,
+                onOverlayOptionsChange = runtime::setOverlayOptions,
+                onEarbudScan = {
+                    val permissions = buildList {
+                        add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        if (Build.VERSION.SDK_INT >= 31) { add(Manifest.permission.BLUETOOTH_SCAN); add(Manifest.permission.BLUETOOTH_CONNECT) }
+                    }
+                    if (permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) runtime.startEarbudScan()
+                    else scanPermissions.launch(permissions.toTypedArray())
+                },
+                onEarbudScanStop = runtime::stopEarbudScan,
+                onPhonePermissionRequest = { phonePermission.launch(Manifest.permission.READ_PHONE_STATE) },
             ))
         }
     }

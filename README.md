@@ -4,7 +4,7 @@
 
 An independent, offline-first Android system monitor. Apache-2.0.
 
-Current development version: **0.5.0-dev** (versionCode 15). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
+Current development version: **0.6.0-dev** (versionCode 16). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
 
 ## Current prototype
 
@@ -19,6 +19,10 @@ Current development version: **0.5.0-dev** (versionCode 15). Android 8.0+ (API26
 - Opt-in performance sessions: record 14 usage/frame/frequency/temperature/battery-terminal metrics in the background, then inspect per-session curves, valid-sample means and extrema. Saved samples remain reviewable after a process interruption.
 - Refresh choices from 100ms to 10s; actual throughput depends on collection cost. Performance recording has a persistent notification, pauses on screen-off and resumes on screen-on.
 - Missing, denied, stale or invalid readings remain unavailable (`—`) rather than becoming zero.
+- Custom overlay content/order (12 fields), one/two columns, font size, background opacity and collapsible translucent edge-arrow docking.
+- Exact SoC catalog lookup and prime/performance/efficiency core groups; seven chip families including Snapdragon 8 Gen 2. Unknown core identities remain explicit.
+- Bluetooth PAN network throughput, expanded protocol capabilities and an explicit 30s foreground BLE scan for supported AirPods/Pro battery advertisements. Coarse readings expire after 60s; rotating addresses are not name-matched to paired devices.
+- Mobile-network fields, hotspot capabilities/filtered Root SoftAP diagnostics, power-saving and thermal system state. Scan/location and phone-state permissions are optional manual grants; no location, phone number or IMEI is collected. See [device extensions](docs/DEVICE_EXTENSIONS.md).
 
 ## Not implemented
 

@@ -71,8 +71,9 @@ class OneShotRootReader internal constructor(
     override suspend fun readFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.compactNodes())
 
     override suspend fun readOverlayFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.overlayNodes())
+    override suspend fun readDiagnosticsFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.diagnosticNodes(), minOf(readTimeoutMs, 3_000L))
 
-    private suspend fun readFrame(nodes: List<RootProtocol.Node>): PrivilegedNodeFrame? {
+    private suspend fun readFrame(nodes: List<RootProtocol.Node>, timeoutMs: Long = readTimeoutMs): PrivilegedNodeFrame? {
         if (!operation.tryLock()) return null
         return try {
             val root = mutableState.value
@@ -80,7 +81,7 @@ class OneShotRootReader internal constructor(
             val id = randomId()
             val started = SystemClock.elapsedRealtime()
             val output = runInterruptible(Dispatchers.IO) {
-                run(RootProtocol.frameScript(id, nodes), readTimeoutMs)
+                run(RootProtocol.frameScript(id, nodes), timeoutMs)
             } ?: return null
             // Root manager banners or prompts must not be parsed as frame data.
             val begin = "LM:$id:BEGIN"
@@ -90,7 +91,7 @@ class OneShotRootReader internal constructor(
                 ByteArrayInputStream(clean.toByteArray(Charsets.US_ASCII)), id, nodes,
             )
             val ended = SystemClock.elapsedRealtime()
-            if (ended < started || ended - started > readTimeoutMs) return null
+            if (ended < started || ended - started > timeoutMs) return null
             synchronized(this) {
                 if (mutableState.value.access != RootAccess.GRANTED ||
                     mutableState.value.sessionId != root.sessionId) null

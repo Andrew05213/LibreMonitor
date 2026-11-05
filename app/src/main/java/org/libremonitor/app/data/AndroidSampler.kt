@@ -35,6 +35,8 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
     private val context = context.applicationContext
     private val cpu = CpuCollector()
     private val network = NetworkCollector()
+    private val environment = org.libremonitor.app.data.collectors.EnvironmentCollector(context)
+    fun invalidateEnvironment() { environment.invalidate() }
 
     /** CSV/history needs only public battery data, with no Root, FPS or other collectors. */
     suspend fun sampleBatteryRecord(): BatteryRecord = withContext(Dispatchers.IO) {
@@ -72,11 +74,19 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             screenWidthPx = mode?.physicalWidth?.takeIf { it > 0 } ?: metrics.widthPixels,
             screenHeightPx = mode?.physicalHeight?.takeIf { it > 0 } ?: metrics.heightPixels,
             refreshRateHz = refresh,
+            cpuIdentity = org.libremonitor.app.data.collectors.CpuIdentityCollector.sample(context),
         )
     }
 
-    suspend fun sample(includeDetails: Boolean = true, includePerformanceDetails: Boolean = false): MonitorSnapshot = withContext(Dispatchers.IO) {
+    suspend fun sample(includeDetails: Boolean = true, includePerformanceDetails: Boolean = false,
+        includeNetwork: Boolean = false): MonitorSnapshot = withContext(Dispatchers.IO) {
         val hardwareDetails = includeDetails || includePerformanceDetails
+        // Low-cadence system diagnostics finish before the short-lived GPU/CPU frame.
+        val environmentSample = if (includeDetails) try { environment.sample(rootReader) }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { org.libremonitor.core.EnvironmentSample(SystemClock.elapsedRealtime(), system = mapOf(
+                "系统状态采集" to Reading.unavailable("Android 公共 API", "状态采集失败：${e.javaClass.simpleName}", org.libremonitor.core.ReadingStatus.ERROR))) }
+            else org.libremonitor.core.EnvironmentSample()
         // Exactly one privileged frame per shared sample; no implicit authorization request.
         val privileged = readPrivilegedSample(rootReader, hardwareDetails, SystemClock::elapsedRealtime)
         val candidate = privileged.frame
@@ -94,7 +104,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         val baseBattery = isolate({ BatteryCollector.sample(context) }, BatteryCollector::failure)
         val batterySample = if (hardwareDetails) isolate({ AdvancedBatteryCollector.enrich(baseBattery, frame) }, { baseBattery }) else baseBattery
         val gpuSample = isolate({ GpuCollector.sample(frame) }, { org.libremonitor.core.GpuSample() })
-        val networkSample = if (includeDetails) isolate({ network.sample() }, network::failure) else NetworkSample(
+        val networkSample = if (includeDetails || includeNetwork) isolate({ network.sample(frame) }, network::failure) else NetworkSample(
             overlayOmitted(), overlayOmitted(), overlayOmitted(), overlayOmitted())
         val storageSample = if (includeDetails) isolate({ StorageCollector.sample(context) }, StorageCollector::failure)
             else StorageSample(overlayOmitted(), overlayOmitted())
@@ -115,9 +125,12 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             val basicBattery = if (hardwareDetails) isolate({ AdvancedBatteryCollector.enrich(baseBattery, null) }, { baseBattery }) else baseBattery
             val basicGpu = isolate({ GpuCollector.sample(null) }, { org.libremonitor.core.GpuSample() })
             val fallbackCompleted = SystemClock.elapsedRealtime()
+            val basicNetwork = if (includeDetails || includeNetwork) {
+                network.resetBaseline(); isolate({ network.sample() }, network::failure)
+            } else networkSample
             return@withContext MonitorSnapshot(System.currentTimeMillis(), now, basicCpu, memorySample,
-                basicBattery, networkSample, storageSample, basicGpu, bluetoothSample,
-                privileged.fpsAt(rootReader.state.value, fallbackCompleted))
+                basicBattery, basicNetwork, storageSample, basicGpu, bluetoothSample,
+                privileged.fpsAt(rootReader.state.value, fallbackCompleted), environmentSample)
         }
         MonitorSnapshot(
             timestampEpochMillis = epoch,
@@ -130,6 +143,7 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             gpu = gpuSample,
             bluetooth = bluetoothSample,
             fps = fpsSample,
+            environment = environmentSample,
         )
     }
 

@@ -1,0 +1,58 @@
+{
+  "version": "0.6.0-dev",
+  "version_code": 16,
+  "validation_date": "2026-11-05",
+  "source_base_commit": "505351d7753e77be8f2d3bb676c37f8d8c728ed2",
+  "source_tag": "v0.6.0-dev",
+  "build": "BUILD SUCCESSFUL",
+  "command": "source /workspace/.libremonitor-setup/env.sh; /workspace/.libremonitor-setup/gradle-8.9/bin/gradle --offline --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
+  "tests": {
+    "core": {
+      "tests": 110,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 1,
+    "warning_ids": [
+      "HardwareIds"
+    ]
+  },
+  "instrumentation_tests": {
+    "compiled": true,
+    "executed_on_android": false
+  },
+  "phone_installed": false,
+  "overlay_gestures_verified_on_phone": false,
+  "airpods_verified_on_phone": false,
+  "bluetooth_pan_transfer_measured": false,
+  "hotspot_rom_verified": false,
+  "soc_topology_verified_on_phone": false,
+  "measured_10hz_throughput": false,
+  "ci_run_at_local_validation": false,
+  "overlay_fields": 12,
+  "soc_catalog_families": 7,
+  "ble_foreground_scan_limit_ms": 30000,
+  "ble_reading_expiry_ms": 60000,
+  "metadata_cache_ms": 5000,
+  "root_diagnostic_process_budget_ms": 3000,
+  "compact_root_node_count": 103,
+  "default_overlay_root_node_count": 4,
+  "apk": {
+    "build_path": "app/build/outputs/apk/debug/app-debug.apk",
+    "download_path": "/workspace/shared/downloads/LibreMonitor-0.6.0-dev.apk",
+    "sha256": "6482472bc51b072efe52dc38c6507e31f8b2e410968532a71645afb42ee560ef",
+    "bytes": 16306937,
+    "signing": "debug",
+    "matches_previous_v050_release_signer": true
+  }
+}

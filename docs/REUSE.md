@@ -37,6 +37,16 @@ AGP8.7.2 / Gradle8.9 / JDK17 / Kotlin2.1.21 / compileSdk35 is a conservative bui
 
 GPU interface research (2026-11-04): OnePlus's GPL kernel [kgsl_pwrctrl.c at 13ca08f](https://github.com/OnePlusOSS/android_kernel_oneplus_sm8350/blob/13ca08fdf0979fdd61d5e8991661874bb2d19150/drivers/gpu/msm/kgsl_pwrctrl.c) was inspected to verify the existing KGSL percentage suffix and busy/total ABI. No kernel implementation, monitoring-app code or binary was copied, linked or bundled. The parser uses independently written Kotlin and arithmetic; no GPL dependency was introduced. See [GPU.md](GPU.md).
 
+## Device-interface research — 0.6.0
+
+The following were read for interface facts only. No implementation or binary was copied or linked; all parsers, filters and catalog rows are independently written Apache-2.0 code/data:
+
+- [Linux ARM64 CPU part definitions](https://github.com/torvalds/linux/blob/master/arch/arm64/include/asm/cputype.h) — GPL kernel header consulted only for factual implementer/part identifiers (including A715 `0xD4D`). No GPL source or dependency is imported.
+- Official Qualcomm/MediaTek product references are recorded per row in `app/src/main/assets/soc_catalog.tsv`; the table stores exact model aliases, product names and reference tier counts, not vendor code/assets. Core assignment still requires runtime identity evidence.
+- [Discontinued Privacy: Personal Data Leaks in Apple Bluetooth-Low-Energy Continuity Protocols](https://petsymposium.org/2020/files/papers/issue1/popets-2020-0003.pdf), [proximity research notes](https://github.com/fischejo/airpods-notify/blob/master/doc/proximity_protocol.md), and [podpower protocol description](https://github.com/t4t5/podpower#how-it-works) (MIT project) — manufacturer/type/length/model identifiers, battery nibbles and orientation/charging interface facts. No AAP control connection or project code is incorporated. Advertised ten-percent bins remain approximate rather than invented fine precision.
+- [AOSP SoftApManager](https://android.googlesource.com/platform/packages/modules/Wifi/+/refs/heads/main/service/java/com/android/server/wifi/SoftApManager.java) — Apache-2.0 source inspected to verify dump field names and state names. Only a separately written fixed output filter and parser are included.
+- Android public [WifiManager](https://developer.android.com/reference/android/net/wifi/WifiManager), [TelephonyManager](https://developer.android.com/reference/android/telephony/TelephonyManager), [BLE scanning](https://developer.android.com/develop/connectivity/bluetooth/ble/find-ble-devices) and [Bluetooth permissions](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions) documentation. No hidden API or manufacturer SDK is added.
+
 ## OpenMonitor is not a source base
 
 https://api.github.com/repos/1orz/OpenMonitor/contents/ at research time listed documentation, icons, LICENSE, and .github but no application/daemon source or build project. README's OpenMonitor-src repository returned anonymous HTTP404. Root LICENSE is GPLv3, but this alone does not establish complete corresponding source for the observed APK or its paid features. 404 may indicate private/moved/unavailable; charging money itself does not violate the GPL. We use a feature-level comparison only, with no copied name, graphics, code, activation bypass, or proprietary binaries.

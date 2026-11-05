@@ -73,10 +73,14 @@ class MonitorRuntime(private val context: Context) {
     private val visibleOwners = mutableSetOf<Any>() // Accessed only on Main.
     private val exportMutex = Mutex()
     private val mutableState = MutableStateFlow(MonitorUiState())
+    private val earbudScanner = org.libremonitor.app.data.EarbudScanner(context) { observations, running, message ->
+        mutableState.update { it.copy(earbudObservations = observations, bluetoothScanning = running, bluetoothScanMessage = message) }
+    }
     val state: StateFlow<MonitorUiState> = mutableState.asStateFlow()
     private val historyCadence = HistoryCadence()
     private var stopRequested = false
     private var pendingHistoryIntent: Boolean? = null
+    private var overlayIntent: org.libremonitor.core.OverlayOptions? = null
     private var historyGeneration = 0L
 
     init {
@@ -93,7 +97,10 @@ class MonitorRuntime(private val context: Context) {
             rootReader.state.collect { root -> mutableState.update { it.copy(rootState = root) } }
         }
         scope.launch {
-            try { mutableState.update { it.copy(device = sampler.deviceInfo()) } }
+            try {
+                val device = withContext(Dispatchers.IO) { sampler.deviceInfo() }
+                mutableState.update { it.copy(device = device) }
+            }
             catch (e: Exception) { reportError("设备信息暂不可用：${e.javaClass.simpleName}") }
         }
         scope.launch {
@@ -101,7 +108,8 @@ class MonitorRuntime(private val context: Context) {
                 .collect { (settings, loaded) ->
                     if (loaded) {
                         val pending = pendingHistoryIntent
-                        val effective = if (pending == null) settings else settings.copy(historyEnabled = pending)
+                        val effective = (if (pending == null) settings else settings.copy(historyEnabled = pending))
+                            .copy(overlay = overlayIntent ?: settings.overlay)
                         // Keep this process's explicit user intent; equal values are not queue acknowledgements.
                         mutableState.update { it.copy(settings = effective) }
                         reconcileService()
@@ -157,8 +165,11 @@ class MonitorRuntime(private val context: Context) {
                         if (plan.needsSnapshot) {
                             val session = state.value.activePerformance?.takeIf { plan.recordPerformance }
                             val started = performanceStartedElapsed
+                            val overlayOptions = state.value.settings.overlay
                             val collected = sampler.sample(includeDetails = plan.mode == SamplingPlan.Mode.LIVE,
-                                includePerformanceDetails = plan.recordPerformance)
+                                includePerformanceDetails = plan.recordPerformance ||
+                                    (state.value.overlayEnabled && overlayOptions.needsHardwareDetails),
+                                includeNetwork = state.value.overlayEnabled && overlayOptions.needsNetwork)
                             val snapshot = collected.copy(fps = collected.fps.validatedFor(rootReader.state.value))
                             // Main-thread publication and disableRoot cannot interleave here.
                             mutableState.update { it.copy(snapshot = snapshot) }
@@ -208,6 +219,7 @@ class MonitorRuntime(private val context: Context) {
         val wasVisible = visible.value
         if (value) visibleOwners.add(owner) else visibleOwners.remove(owner)
         visible.value = visibleOwners.isNotEmpty()
+        if (!visible.value && state.value.bluetoothScanning) earbudScanner.stop("离开应用前台，扫描已停止。")
         if (value) {
             interactive.value = isScreenInteractive()
             if (!wasVisible) scope.launch { refreshHistory(); refreshPerformanceSessions() }
@@ -248,6 +260,16 @@ class MonitorRuntime(private val context: Context) {
         try { preferences.setSampleIntervalMs(value) }
         catch (e: Exception) { reportError("无法保存刷新间隔：${e.javaClass.simpleName}") }
     }
+
+    fun setOverlayOptions(options: org.libremonitor.core.OverlayOptions) {
+        overlayIntent = options
+        mutableState.update { it.copy(settings = it.settings.copy(overlay = options)) }
+        try { preferences.setOverlayOptions(options) }
+        catch (e: Exception) { reportError("无法保存悬浮窗设置：${e.javaClass.simpleName}") }
+    }
+    fun startEarbudScan() { if (visible.value) earbudScanner.start() }
+    fun stopEarbudScan() { earbudScanner.stop() }
+    fun refreshEnvironmentPermissions() { sampler.invalidateEnvironment() }
 
     fun setOverlayEnabled(value: Boolean) {
         if (value) stopRequested = false
@@ -431,6 +453,7 @@ class MonitorRuntime(private val context: Context) {
     }
 
     fun stopAll() {
+        if (state.value.bluetoothScanning) earbudScanner.stop("已停止全部监控和前台耳机扫描。")
         disableRoot()
         stopRequested = true
         stopPerformanceRecording()
