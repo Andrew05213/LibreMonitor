@@ -13,6 +13,8 @@ internal class NetworkCollector {
     private var previousRx: Baseline? = null
     private var previousTx: Baseline? = null
 
+    fun resetBaseline() { previousRx = null; previousTx = null }
+
     fun sample(): NetworkSample {
         val rxSource = "TrafficStats.getTotalRxBytes（系统累计字节，非本应用流量）"
         val txSource = "TrafficStats.getTotalTxBytes（系统累计字节，非本应用流量）"
@@ -53,8 +55,7 @@ internal class NetworkCollector {
     }
 
     fun failure(error: Exception): NetworkSample {
-        previousRx = null
-        previousTx = null
+        resetBaseline()
         return NetworkSample(
             failedReading<Double>("TrafficStats:Rx B/s", error),
             failedReading<Double>("TrafficStats:Tx B/s", error),

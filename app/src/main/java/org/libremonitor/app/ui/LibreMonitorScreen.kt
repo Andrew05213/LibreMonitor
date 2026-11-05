@@ -414,6 +414,10 @@ private fun OverviewPage(
             onDetail,
         )
         InfoRow("前台图层", snapshot.fps.target.validValue { it.isNotBlank() } ?: "未定位到可测图层")
+        if (!snapshot.fps.fps.available) {
+            Text(snapshot.fps.fps.reason ?: "帧率暂不可用", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
     SectionCard("存储", Icons.Rounded.Storage) {
         MiniPair(
@@ -422,14 +426,12 @@ private fun OverviewPage(
             onDetail,
         )
     }
-    if (snapshot.gpu.usagePercent.available || snapshot.gpu.frequencyMhz.available) {
-        SectionCard("图形", Icons.Rounded.Memory) {
-            MiniPair(
-                tile("GPU 占用", snapshot.gpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Memory),
-                tile("GPU 频率", snapshot.gpu.frequencyMhz, ::frequencyQuantity, positiveDouble, stamp, Icons.Rounded.Speed),
-                onDetail,
-            )
-        }
+    SectionCard("图形", Icons.Rounded.Memory) {
+        MiniPair(
+            tile("GPU 占用", snapshot.gpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Memory),
+            tile("GPU 频率", snapshot.gpu.frequencyMhz, ::frequencyQuantity, positiveDouble, stamp, Icons.Rounded.Speed),
+            onDetail,
+        )
     }
 }
 
@@ -913,7 +915,7 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent:
         DeviceRows(state.device)
     }
     SectionCard("关于", Icons.Rounded.Info) {
-        InfoRow("版本", "0.4.1-dev")
+        InfoRow("版本", "0.4.2-dev")
         InfoRow("许可证", "Apache-2.0")
         InfoRow("网络", "无联网权限")
     }

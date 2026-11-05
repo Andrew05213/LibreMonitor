@@ -14,6 +14,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -28,6 +29,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.libremonitor.app.MainActivity
 import org.libremonitor.app.MonitorApplication
@@ -66,26 +68,28 @@ class MonitorService : Service() {
             return
         }
         scope.launch {
-            runtime.state.collect { state ->
-                if (!MonitorNotifications.allowed(this@MonitorService)) {
-                    runtime.stopAll()
-                    runtime.reportError("通知或监控通知渠道已关闭，持续监控已停止。")
-                    stopSelf()
-                } else if (!state.settings.historyEnabled && !state.overlayEnabled) {
-                    stopSelf()
-                } else if (state.overlayEnabled) {
-                    if (!Settings.canDrawOverlays(this@MonitorService)) {
-                        removeOverlay()
-                        runtime.reportError("悬浮窗权限尚未授予或已被撤销。")
-                        runtime.setOverlayEnabled(false)
+            combine(runtime.state, runtime.screenInteractive) { state, interactive -> state to interactive }
+                .collect { (state, interactive) ->
+                    if (!MonitorNotifications.allowed(this@MonitorService)) {
+                        runtime.stopAll()
+                        runtime.reportError("通知或监控通知渠道已关闭，持续监控已停止。")
+                        stopSelf()
+                    } else if (!state.settings.historyEnabled && !state.overlayEnabled) {
+                        stopSelf()
+                    } else if (state.overlayEnabled) {
+                        if (!Settings.canDrawOverlays(this@MonitorService)) {
+                            removeOverlay()
+                            runtime.reportError("悬浮窗权限尚未授予或已被撤销。")
+                            runtime.setOverlayEnabled(false)
+                        } else if (interactive) {
+                            ensureOverlay()
+                            val text = formatOverlay(state)
+                            if (overlayText?.text?.toString() != text) overlayText?.text = text
+                        } else removeOverlay()
                     } else {
-                        ensureOverlay()
-                        overlayText?.text = formatOverlay(state)
+                        removeOverlay()
                     }
-                } else {
-                    removeOverlay()
                 }
-            }
         }
     }
 
@@ -218,6 +222,11 @@ class MonitorService : Service() {
 
     private fun formatOverlay(state: MonitorUiState): String {
         val snapshot = state.snapshot ?: return "正在读取真实设备数据…"
+        val now = SystemClock.elapsedRealtime()
+        if (snapshot.elapsedRealtimeMillis > now ||
+            now - snapshot.elapsedRealtimeMillis > maxOf(15_000L, state.settings.sampleIntervalMs * 3)) {
+            return "正在恢复采集，请稍候…"
+        }
         fun number(value: Double?, suffix: String) = value?.takeIf { it.isFinite() }?.let {
             String.format(Locale.ROOT, "%.1f%s", it, suffix)
         } ?: "不可用"
@@ -231,7 +240,7 @@ class MonitorService : Service() {
             val low = snapshot.fps.onePercentLow.value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"
             "\nFPS $fps  1% low $low"
         } else {
-            "\nFPS 不可用"
+            "\nFPS — ${snapshot.fps.fps.reason.orEmpty().take(48)}"
         }
         return "CPU  ${number(snapshot.cpu.usagePercent.value, "%")}\n" +
             "内存 $memory\n" +

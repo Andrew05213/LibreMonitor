@@ -33,6 +33,10 @@ AGP8.7.2 / Gradle8.9 / JDK17 / Kotlin2.1.21 / compileSdk35 is a conservative bui
 - **AppManager — GPL-3.0-or-later with per-file review**: https://github.com/MuntashirAkon/AppManager/blob/master/COPYING . No code or dependency imported into this Apache-2.0 project. Any future reuse requires a compatibility and distribution-obligations review.
 - **Perfetto — Apache-2.0 plus third-party terms**: https://github.com/google/perfetto/blob/main/LICENSE . Future external trace analysis, not an embedded MVP dependency. FrameTimeline coverage is not all games/surfaces: https://perfetto.dev/docs/data-sources/frametimeline .
 
+## GPU interface research
+
+GPU interface research (2026-11-04): OnePlus's GPL kernel [kgsl_pwrctrl.c at 13ca08f](https://github.com/OnePlusOSS/android_kernel_oneplus_sm8350/blob/13ca08fdf0979fdd61d5e8991661874bb2d19150/drivers/gpu/msm/kgsl_pwrctrl.c) was inspected to verify the existing KGSL percentage suffix and busy/total ABI. No kernel implementation, monitoring-app code or binary was copied, linked or bundled. The parser uses independently written Kotlin and arithmetic; no GPL dependency was introduced. See [GPU.md](GPU.md).
+
 ## OpenMonitor is not a source base
 
 https://api.github.com/repos/1orz/OpenMonitor/contents/ at research time listed documentation, icons, LICENSE, and .github but no application/daemon source or build project. README's OpenMonitor-src repository returned anonymous HTTP404. Root LICENSE is GPLv3, but this alone does not establish complete corresponding source for the observed APK or its paid features. 404 may indicate private/moved/unavailable; charging money itself does not violate the GPL. We use a feature-level comparison only, with no copied name, graphics, code, activation bypass, or proprietary binaries.

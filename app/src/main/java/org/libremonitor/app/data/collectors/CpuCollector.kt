@@ -18,7 +18,15 @@ internal class CpuCollector {
     var rootIdentity: String = "disabled"
     private val coreCount = boundedProcessorCount()
 
-    fun sample(elapsedMillis: Long, frame: PrivilegedNodeFrame? = null): CpuSample {
+    fun resetBaseline() {
+        previous = emptyMap()
+        previousElapsed = null
+        previousSource = null
+        previousSession = null
+        previousRootIdentity = null
+    }
+
+    fun sample(elapsedMillis: Long, frame: PrivilegedNodeFrame? = null, includeDetails: Boolean = true): CpuSample {
         fun parse(reading: Reading<String>) = reading.mapReading {
             CpuStatParser.parse(it).takeIf { times -> times.containsKey("cpu") }
         }
@@ -57,6 +65,8 @@ internal class CpuCollector {
             .filter { it != "cpu" }
             .mapNotNull { it.removePrefix("cpu").toIntOrNull() }
             .filter { it in 0..255 }.distinct().sorted().toList()
+        if (!includeDetails) return CpuSample(usage("cpu"), emptyList(), emptyList(),
+            unsupported("CPU 温度", "悬浮窗模式不采集温度和核心详情"))
         val thermal = isolate({ AdvancedCpuCollector.sample(frame) }, {
             AdvancedCpuCollector.Result(unsupported("CPU 温度", "传感器读取失败"), emptyList())
         })
@@ -83,11 +93,7 @@ internal class CpuCollector {
     }
 
     fun failure(error: Exception): CpuSample {
-        previous = emptyMap()
-        previousElapsed = null
-        previousSource = null
-        previousSession = null
-        previousRootIdentity = null
+        resetBaseline()
         return CpuSample(
             failedReading("/proc/stat", error),
             List(coreCount) { failedReading("/proc/stat:cpu$it", error) },

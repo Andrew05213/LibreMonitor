@@ -94,7 +94,16 @@ data class FpsSample(
     val onePercentLow: Reading<Double> = Reading.unavailable("1% low", "Not sampled"),
     val frameTimeMs: Reading<Double> = Reading.unavailable("Frame time", "Not sampled"),
     val target: Reading<String> = Reading.unavailable("SurfaceFlinger", "Not sampled"),
-)
+    val rootSessionId: Long? = null,
+) {
+    /** Validate again at publication, not only when the IO operation returns. */
+    fun validatedFor(root: RootState): FpsSample {
+        if (root.access == RootAccess.GRANTED && (!fps.available || rootSessionId == root.sessionId)) return this
+        val reason = "Root 会话已停用或更换，等待新的帧率样本"
+        return FpsSample(Reading.unavailable("SurfaceFlinger", reason), Reading.unavailable("SurfaceFlinger", reason),
+            Reading.unavailable("SurfaceFlinger", reason), Reading.unavailable("SurfaceFlinger", reason))
+    }
+}
 
 /** Public-API Bluetooth view. RSSI/core version are deliberately unavailable when Android does not expose them. */
 data class BluetoothDeviceInfo(

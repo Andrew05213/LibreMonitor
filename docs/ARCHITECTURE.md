@@ -1,6 +1,6 @@
 # Architecture
 
-Current as of 0.4.0-dev.
+Current as of 0.4.2-dev.
 
 ## Data path
 
@@ -35,16 +35,21 @@ The foreground freshness clock ticks only while the lifecycle is STARTED. Wall t
 - The fixed frame is defined by `RootProtocol.compactNodes()`: `/proc/stat`, eight cpufreq nodes, 32 thermal zones, battery/bms fields and KGSL nodes. This is a compact frame, not a promise that every device has the same cores/sensors.
 - Identity verification requires actual UID 0 plus capability bits. It deliberately does not require a populated `uid_map`; the tested Android 17/KernelSU environment exposes an empty one.
 - A frame has a bounded size, a completion marker and a monotonic read deadline. Timeout, truncation or a missing marker produces no frame rather than partial data.
-- Root permissions are limited to three fixed app-scoped commands after confirmation: notification grant, overlay app-op and battery-optimization whitelist. No arbitrary command/path API exists.
+- Root permissions are limited to four fixed app-scoped commands after confirmation: notification grant, overlay app-op, battery-optimization whitelist and Bluetooth-connect permission. No arbitrary command/path API exists.
 - `RootReader` (persistent-shell implementation) remains for protocol tests and experiments, but `MonitorRuntime` uses `OneShotRootReader`.
+
+FPS uses the same operation mutex and sampling loop. `FpsProtocol` executes a fixed read-only discovery/probe script, normalizes Android 16+ debug wrappers, probes at most four foreground-package candidates, and decodes a nonce-delimited, bounded response. `FpsTracker` uses `System.nanoTime()` / CLOCK_MONOTONIC for SurfaceFlinger timestamps (not elapsedRealtime/boottime), rejects old or non-advancing history, and resets at Root-session changes. Long intervals are retained. Statistics cover only the recent available history, not a continuous benchmark; see [FPS.md](FPS.md). Available FPS samples carry a Root-session ID, revalidated in the sampler and on Main immediately before publication; manual Root stop clears the displayed FPS. The script uses advertised 250ms service timeouts or legacy one-second timeouts; its eight-second whole-process wait budget covers the worst-case seven legacy calls plus overhead, excluding possible stream-join/cleanup delay. FPS discovery now runs before the node frame, so slow FPS work cannot age an already captured GPU/CPU/battery frame. FPS results older than two seconds after their read completes are marked unavailable; node freshness/session checks remain enforced. See [GPU.md](GPU.md).
 
 ## Time and cancellation
 
 - CPU uses cumulative counters and interval deltas. Guest counters are not added twice; iowait is treated as idle and documented.
 - Network rates use monotonic elapsed time, reject counter resets and missing baselines, and do not infer billing or per-app usage.
-- The main sampler is controlled by the union of visible Activity owners and foreground-service presence. It is not duplicated by UI, chart, history or overlay.
-- Sampling interval changes apply at the next loop delay without cancelling a committed history write.
+- One demand-driven loop serves all consumers. An interactive visible Activity gets the full snapshot; an interactive background overlay gets aggregate CPU, memory, public battery and FPS. Overlay Root frames contain only `/proc/stat`, avoiding the other 101 compact-frame nodes; CPU thermal/frequency, GPU, network, storage and Bluetooth collectors are skipped.
+- When only history is needed (including screen-off), public battery APIs run at the history cadence, without Root or other collectors. No partial sample is published as a fresh full snapshot. Without visible demand or recording, sampling stops.
+- Screen broadcasts are registered only while an Activity or service needs the runtime. Screen-off removes the overlay; screen-on restores it when enabled. No screen polling or wake lock is used.
+- Demand/interval changes restart cancellable work and preserve the history ledger. Root frame/FPS waits use interruptible IO with process cleanup. CPU/network baselines reset before live resume to avoid presenting a long idle average as an instantaneous rate.
 - A short accepted history transaction plus cadence checkpoint is non-cancellable. Stop blocks new acceptance; an already accepted transaction may finish.
+- Background inserts do not reload history rows; the UI queries on becoming visible and after visible inserts. Public battery API failures remain nullable CSV fields; recording never launches Root as a fallback.
 - A history generation prevents an older query result from refilling the UI after clear.
 - The foreground UI's freshness clock stops when the lifecycle drops below STARTED.
 

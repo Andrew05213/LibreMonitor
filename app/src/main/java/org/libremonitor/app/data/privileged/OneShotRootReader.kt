@@ -5,6 +5,7 @@ import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +30,7 @@ class OneShotRootReader internal constructor(
     private val startProcess: (String) -> Process,
     private val authTimeoutMs: Long = 60_000L,
     private val readTimeoutMs: Long = 15_000L,
+    private val monotonicNanos: () -> Long = { System.nanoTime() },
 ) : RootSession {
     constructor() : this({ script ->
         ProcessBuilder("su", "-c", script).redirectErrorStream(false).start()
@@ -39,6 +41,8 @@ class OneShotRootReader internal constructor(
     override val state: StateFlow<RootState> = mutableState.asStateFlow()
     private var nextSessionId = 0L
     private val random = SecureRandom()
+    private val fpsTracker = FpsTracker()
+    private val fpsLifecycle = Any()
 
     override suspend fun requestAuthorization(): Boolean = operation.withLock {
         mutableState.value = RootState(RootAccess.REQUESTING, "Waiting for user authorization", mutableState.value.sessionId)
@@ -50,6 +54,7 @@ class OneShotRootReader internal constructor(
             .orEmpty()
         val ok = RootProtocol.verifyProbe(lines, id)
         if (ok) {
+            fpsTracker.reset()
             nextSessionId++
             mutableState.value = RootState(RootAccess.GRANTED, "Root one-shot session active", nextSessionId)
         } else {
@@ -63,15 +68,18 @@ class OneShotRootReader internal constructor(
         ok
     }
 
-    override suspend fun readFrame(): PrivilegedNodeFrame? {
+    override suspend fun readFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.compactNodes())
+
+    override suspend fun readOverlayFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.overlayNodes())
+
+    private suspend fun readFrame(nodes: List<RootProtocol.Node>): PrivilegedNodeFrame? {
         if (!operation.tryLock()) return null
         return try {
             val root = mutableState.value
             if (root.access != RootAccess.GRANTED) return null
             val id = randomId()
-            val nodes = RootProtocol.compactNodes()
             val started = SystemClock.elapsedRealtime()
-            val output = withContext(Dispatchers.IO) {
+            val output = runInterruptible(Dispatchers.IO) {
                 run(RootProtocol.frameScript(id, nodes), readTimeoutMs)
             } ?: return null
             // Root manager banners or prompts must not be parsed as frame data.
@@ -126,24 +134,35 @@ class OneShotRootReader internal constructor(
     }
 
     override suspend fun readFps(): FpsSample? {
-        if (!operation.tryLock()) return null
+        if (!operation.tryLock()) return FpsTracker.unavailable("Root 正在处理其他请求")
         return try {
-            if (mutableState.value.access != RootAccess.GRANTED) return null
-            val output = withContext(Dispatchers.IO) {
-                run(RootProtocol.fpsScript(randomId()), readTimeoutMs)
-            } ?: return null
-            return RootProtocol.parseFps(output)
+            val root = mutableState.value
+            if (root.access != RootAccess.GRANTED) return FpsTracker.unavailable("请先启用 Root 帧率读取")
+            val id = randomId()
+            val output = runInterruptible(Dispatchers.IO) {
+                run(RootProtocol.fpsScript(id), minOf(readTimeoutMs, FpsProtocol.PROCESS_TIMEOUT_MS))
+            } ?: return FpsTracker.unavailable("帧率读取失败或超时；请检查 Root 状态及 ROM 接口支持")
+            // A close/replacement while dumpsys was running invalidates this result too.
+            synchronized(fpsLifecycle) {
+                val current = mutableState.value
+                if (current.access != RootAccess.GRANTED || current.sessionId != root.sessionId) {
+                    FpsTracker.unavailable("Root 会话已停用或更换，已丢弃迟到帧率")
+                } else fpsTracker.sample(FpsProtocol.decode(output, id), monotonicNanos()).copy(rootSessionId = root.sessionId)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            null
+            FpsTracker.unavailable("帧率响应读取或解析失败")
         } finally {
             operation.unlock()
         }
     }
 
     override fun close() {
-        mutableState.value = RootState(RootAccess.DISABLED, "Root session disabled", mutableState.value.sessionId)
+        synchronized(fpsLifecycle) {
+            mutableState.value = RootState(RootAccess.DISABLED, "Root session disabled", mutableState.value.sessionId)
+            fpsTracker.reset()
+        }
     }
 
     private fun run(script: String, timeoutMs: Long): String? {
@@ -158,17 +177,22 @@ class OneShotRootReader internal constructor(
         val errThread = Thread({ copy(process.errorStream, errors) }, "libremonitor-root-err").apply { isDaemon = true }
         outThread.start()
         errThread.start()
-        val finished = try {
-            process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+        return try {
+            val finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+            if (!finished) return null
+            outThread.join(1_000L)
+            errThread.join(1_000L)
+            if (process.exitValue() == 0 && !output.overflow && !errors.overflow) output.text() else null
         } catch (_: InterruptedException) {
-            false
+            Thread.currentThread().interrupt()
+            null
+        } finally {
+            // Screen/consumer changes cancel blocking reads as well as the coroutine delay.
+            process.destroyForcibly()
+            runCatching { process.inputStream.close() }
+            runCatching { process.errorStream.close() }
+            runCatching { process.outputStream.close() }
         }
-        if (!finished) process.destroyForcibly()
-        outThread.join(1_000L)
-        errThread.join(1_000L)
-        return if (finished && process.exitValue() == 0 && !output.overflow && !errors.overflow) {
-            output.text()
-        } else null
     }
 
     private fun copy(input: InputStream, output: BoundedBuffer) {

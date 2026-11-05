@@ -3,10 +3,14 @@ package org.libremonitor.app
 
 import android.Manifest
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
@@ -14,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -36,6 +42,8 @@ import org.libremonitor.core.RootAccess
 import org.libremonitor.app.service.MonitorNotifications
 import org.libremonitor.app.service.MonitorService
 import org.libremonitor.core.BatteryRecord
+import org.libremonitor.core.HistoryCadence
+import org.libremonitor.core.SamplingPlan
 import java.io.OutputStream
 
 /** Process-owned single sampling engine. No boot receiver or background auto-start. */
@@ -51,11 +59,13 @@ class MonitorRuntime(private val context: Context) {
     private val preferences = MonitorPreferences(context)
     private val visible = MutableStateFlow(false)
     private val serviceActive = MutableStateFlow(false)
+    private val interactive = MutableStateFlow(isScreenInteractive())
+    val screenInteractive: StateFlow<Boolean> = interactive.asStateFlow()
     private val visibleOwners = mutableSetOf<Any>() // Accessed only on Main.
     private val exportMutex = Mutex()
     private val mutableState = MutableStateFlow(MonitorUiState())
     val state: StateFlow<MonitorUiState> = mutableState.asStateFlow()
-    private var lastHistoryElapsed: Long? = null
+    private val historyCadence = HistoryCadence()
     private var stopRequested = false
     private var pendingHistoryIntent: Boolean? = null
     private var historyGeneration = 0L
@@ -68,7 +78,6 @@ class MonitorRuntime(private val context: Context) {
         scope.launch {
             try { mutableState.update { it.copy(device = sampler.deviceInfo()) } }
             catch (e: Exception) { reportError("设备信息暂不可用：${e.javaClass.simpleName}") }
-            refreshHistory()
         }
         scope.launch {
             combine(preferences.settings, preferences.loaded) { settings, loaded -> settings to loaded }
@@ -84,35 +93,81 @@ class MonitorRuntime(private val context: Context) {
                 }
         }
         scope.launch {
-            // Interval changes do not cancel a committed record or reset the cadence ledger.
+            // Listen only while there is a consumer. No screen polling, alarms or wake locks.
             combine(visible, serviceActive) { shown, service -> shown || service }
                 .distinctUntilChanged().collectLatest { active ->
                     if (!active) return@collectLatest
-                    while (currentCoroutineContext().isActive) {
-                        try {
-                            val snapshot = sampler.sample()
-                            mutableState.update { it.copy(snapshot = snapshot) }
-                            val settings = state.value.settings
-                            val elapsed = snapshot.elapsedRealtimeMillis
-                            val due = lastHistoryElapsed?.let { elapsed < it || elapsed - it >= settings.historyIntervalMs } ?: true
-                            if (settings.historyEnabled && serviceActive.value && !stopRequested && due) {
-                                // A record already accepted may finish after Stop; no subsequent record is accepted.
-                                // Keep commit + cadence bookkeeping together even when UI demand disappears.
-                                withContext(NonCancellable) {
-                                    history.insert(BatteryRecord.from(snapshot))
-                                    lastHistoryElapsed = elapsed
-                                    refreshHistory()
-                                }
-                            }
-                        } catch (e: CancellationException) { throw e }
-                        catch (e: Exception) {
-                            reportError("采集或记录失败：${e.javaClass.simpleName}；请检查可用空间和系统限制。")
+                    val receiver = object : BroadcastReceiver() {
+                        override fun onReceive(context: Context?, intent: Intent?) {
+                            interactive.value = isScreenInteractive()
                         }
-                        delay(state.value.settings.sampleIntervalMs)
                     }
+                    ContextCompat.registerReceiver(context, receiver, IntentFilter().apply {
+                        addAction(Intent.ACTION_SCREEN_ON)
+                        addAction(Intent.ACTION_SCREEN_OFF)
+                    }, ContextCompat.RECEIVER_NOT_EXPORTED)
+                    try {
+                        interactive.value = isScreenInteractive()
+                        awaitCancellation()
+                    } finally { context.unregisterReceiver(receiver) }
                 }
         }
+        scope.launch {
+            // Project only demand fields so snapshots/history/error updates never restart the loop.
+            val options = state.map { it.settings to it.overlayEnabled }.distinctUntilChanged()
+            combine(visible, serviceActive, interactive, options) { shown, service, screen, (settings, overlay) ->
+                SamplingPlan.forDemand(shown, service, screen, overlay, settings)
+            }.distinctUntilChanged().collectLatest { plan ->
+                if (plan.mode == SamplingPlan.Mode.IDLE) return@collectLatest
+                if (plan.needsSnapshot) sampler.resetRateBaselines()
+                while (currentCoroutineContext().isActive) {
+                    try {
+                        // Reuse the ledger across visibility/screen/interval changes.
+                        if (plan.mode == SamplingPlan.Mode.HISTORY) {
+                            delay(historyCadence.remainingMillis(SystemClock.elapsedRealtime(), plan.historyIntervalMs))
+                        }
+                        // Battery-only samples do not emit UI snapshots, so keep this gate here too.
+                        if (serviceActive.value && !MonitorNotifications.allowed(context)) {
+                            stopAll()
+                            reportError("通知或监控通知渠道已关闭，持续监控已停止。")
+                            return@collectLatest
+                        }
+                        val record: BatteryRecord
+                        val elapsed: Long
+                        if (plan.needsSnapshot) {
+                            val snapshot = sampler.sample(includeDetails = plan.mode == SamplingPlan.Mode.LIVE)
+                            // Main-thread publication and disableRoot cannot interleave here.
+                            mutableState.update { it.copy(snapshot = snapshot.copy(fps = snapshot.fps.validatedFor(rootReader.state.value))) }
+                            record = BatteryRecord.from(snapshot)
+                            elapsed = snapshot.elapsedRealtimeMillis
+                        } else {
+                            record = sampler.sampleBatteryRecord()
+                            elapsed = SystemClock.elapsedRealtime()
+                        }
+                        val settings = state.value.settings
+                        val due = historyCadence.remainingMillis(elapsed, settings.historyIntervalMs) == 0L
+                        if (settings.historyEnabled && serviceActive.value && !stopRequested && due) {
+                            // A record already accepted may finish after Stop; no subsequent record is accepted.
+                            // Keep commit + cadence bookkeeping together even when UI demand disappears.
+                            withContext(NonCancellable) {
+                                history.insert(record)
+                                historyCadence.recorded(elapsed)
+                                if (visible.value && interactive.value) refreshHistory()
+                            }
+                        }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) {
+                        reportError("采集或记录失败：${e.javaClass.simpleName}；请检查可用空间和系统限制。")
+                    }
+                    // Error retries also back off; failed inserts never advance the ledger.
+                    delay(if (plan.mode == SamplingPlan.Mode.HISTORY) plan.historyIntervalMs else plan.sampleIntervalMs)
+                }
+            }
+        }
     }
+
+    private fun isScreenInteractive(): Boolean =
+        context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
 
     fun refreshBluetoothPermission() {
         val granted = Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(
@@ -122,9 +177,12 @@ class MonitorRuntime(private val context: Context) {
     }
 
     fun setUiVisible(owner: Any, value: Boolean) {
+        val wasVisible = visible.value
         if (value) visibleOwners.add(owner) else visibleOwners.remove(owner)
         visible.value = visibleOwners.isNotEmpty()
         if (value) {
+            interactive.value = isScreenInteractive()
+            if (!wasVisible) scope.launch { refreshHistory() }
             reconcileService()
             maybeAutoRestoreRoot()
         }
@@ -151,7 +209,7 @@ class MonitorRuntime(private val context: Context) {
 
     fun setHistoryEnabled(value: Boolean) {
         pendingHistoryIntent = value
-        if (value) { stopRequested = false; lastHistoryElapsed = null }
+        if (value) { stopRequested = false; historyCadence.reset() }
         mutableState.update { it.copy(settings = it.settings.copy(historyEnabled = value)) }
         try { preferences.setHistoryEnabled(value) }
         catch (e: Exception) { reportError("无法保存记录设置：${e.javaClass.simpleName}") }
@@ -216,7 +274,10 @@ class MonitorRuntime(private val context: Context) {
         rootRequestInFlight = false
         rootManuallyDisabled = true
         rootReader.close()
-        mutableState.update { it.copy(rootState = rootReader.state.value) }
+        mutableState.update {
+            it.copy(rootState = rootReader.state.value,
+                snapshot = it.snapshot?.let { sample -> sample.copy(fps = sample.fps.validatedFor(rootReader.state.value)) })
+        }
     }
 
     /** Explicit user action: grant only this app's notification, overlay and battery-whitelist entries. */

@@ -1,0 +1,38 @@
+{
+  "version": "0.4.2-dev",
+  "validation_date": "2026-11-04",
+  "change": "KGSL GPU percentage suffix, busy/total fallback, visible diagnostics, and FPS-before-node ordering",
+  "build": "BUILD SUCCESSFUL",
+  "command": "source /workspace/.libremonitor-setup/env.sh; /workspace/.libremonitor-setup/gradle-8.9/bin/gradle --offline --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug",
+  "final_license_assets_repack": ":app:assembleDebug (BUILD SUCCESSFUL)",
+  "tests": {
+    "core": {
+      "tests": 85,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 78,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "phone_installed": false,
+  "gpu_load_measured_on_phone": false,
+  "ci_run_for_this_change": false,
+  "supported_interface": "KGSL only; no new GPU paths or background sampling",
+  "interface_reference": "OnePlusOSS/android_kernel_oneplus_sm8350 at 13ca08fdf0979fdd61d5e8991661874bb2d19150, drivers/gpu/msm/kgsl_pwrctrl.c (interface facts only; no source copied)",
+  "lint": {
+    "Warning": 1,
+    "errors": 0
+  },
+  "apk": {
+    "build_path": "app/build/outputs/apk/debug/app-debug.apk",
+    "download_path": "/workspace/shared/downloads/LibreMonitor-0.4.2-dev-gpu-fix.apk",
+    "sha256": "3e5995bc8334bdda22a1d8e033096496e79d46dba7ab54c2cf4512960854de56",
+    "bytes": 16106729,
+    "signing": "debug"
+  }
+}
