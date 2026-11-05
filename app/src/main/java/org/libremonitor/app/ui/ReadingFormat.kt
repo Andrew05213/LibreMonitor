@@ -40,6 +40,7 @@ internal object ReadingFormat {
             .format(Date(epochMillis))
 
     fun interval(milliseconds: Long): String = when {
+        milliseconds in 1L..999L -> "$milliseconds 毫秒"
         milliseconds % 60_000L == 0L -> "${milliseconds / 60_000L} 分钟"
         milliseconds % 1_000L == 0L -> "${milliseconds / 1_000L} 秒"
         else -> "${number(milliseconds / 1_000.0)} 秒"

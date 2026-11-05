@@ -5,6 +5,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SamplingPlanTest {
+    @Test fun fastLiveAndOverlayCadenceIncludesCollectionTime() {
+        val settings = MonitorSettings(sampleIntervalMs = 100, historyEnabled = true)
+        val live = SamplingPlan.forDemand(true, true, true, true, settings)
+        val overlay = SamplingPlan.forDemand(false, true, true, true, settings)
+        for (plan in listOf(live, overlay)) {
+            var elapsed = 0L
+            repeat(10) {
+                val collectionTime = 40L
+                elapsed += collectionTime + plan.delayAfterSampleMillis(collectionTime)
+            }
+            assertEquals(1_000L, elapsed)
+            assertEquals(0L, plan.delayAfterSampleMillis(150))
+            assertEquals(100L, plan.delayAfterSampleMillis(-1))
+        }
+        val history = SamplingPlan.forDemand(false, true, false, true, settings)
+        assertEquals(SamplingPlan.Mode.HISTORY, history.mode)
+        assertEquals(60_000L, history.delayAfterSampleMillis(40))
+    }
+
     @Test fun exhaustiveConsumerAndScreenCombinations() {
         for (ui in listOf(false, true)) for (service in listOf(false, true)) {
             for (screen in listOf(false, true)) for (overlay in listOf(false, true)) {
@@ -23,6 +42,25 @@ class SamplingPlanTest {
                 }
             }
         }
+    }
+
+    @Test fun recordingSamplesInBackgroundWithoutAnOverlayAndPausesOnScreenOff() {
+        val settings = MonitorSettings(sampleIntervalMs = 100)
+        val recording = SamplingPlan.forDemand(false, true, true, false, settings, performanceRecording = true)
+        assertEquals(SamplingPlan.Mode.PERFORMANCE, recording.mode)
+        assertTrue(recording.needsSnapshot)
+        assertTrue(recording.recordPerformance)
+        assertEquals(60L, recording.delayAfterSampleMillis(40))
+        val screenOff = SamplingPlan.forDemand(false, true, false, true, settings, performanceRecording = true)
+        assertEquals(SamplingPlan.Mode.IDLE, screenOff.mode)
+        assertFalse(screenOff.recordPerformance)
+        val screenOffHistory = SamplingPlan.forDemand(false, true, false, true,
+            settings.copy(historyEnabled = true), performanceRecording = true)
+        assertEquals(SamplingPlan.Mode.HISTORY, screenOffHistory.mode)
+        assertFalse(screenOffHistory.recordPerformance)
+        val noService = SamplingPlan.forDemand(false, false, true, true, settings, performanceRecording = true)
+        assertEquals(SamplingPlan.Mode.IDLE, noService.mode)
+        assertFalse(noService.recordPerformance)
     }
 
     @Test fun backgroundRecordingWaitsForRemainingCadenceInsteadOfRestartingTheMinute() {

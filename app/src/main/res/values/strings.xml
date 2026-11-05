@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LibreMonitor</string>
-    <string name="overlay_drag_handle">LibreMonitor · 拖动移动</string>
-    <string name="overlay_handle_description">监控悬浮窗，拖动移动，轻点打开应用</string>
-    <string name="overlay_open">打开</string>
-    <string name="overlay_stop">停止全部</string>
 </resources>

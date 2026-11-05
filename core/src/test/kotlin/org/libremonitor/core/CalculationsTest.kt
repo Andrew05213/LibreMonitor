@@ -182,6 +182,17 @@ class CalculationsTest {
     @Test(expected = IllegalArgumentException::class) fun invalidSamplingIntervalFails() {
         MonitorSettings(sampleIntervalMs = 0)
     }
+    @Test fun fastSamplingIntervalsAndBoundaries() {
+        listOf(100L, 200L, 500L, 1_000L, 2_000L, 5_000L, 10_000L).forEach {
+            assertEquals(it, MonitorSettings(sampleIntervalMs = it).sampleIntervalMs)
+        }
+    }
+    @Test(expected = IllegalArgumentException::class) fun samplingBelowOneHundredMillisFails() {
+        MonitorSettings(sampleIntervalMs = 99)
+    }
+    @Test(expected = IllegalArgumentException::class) fun samplingAboveTenSecondsFails() {
+        MonitorSettings(sampleIntervalMs = 10_001)
+    }
     @Test fun unimplementedBackendsAreExplicitlyUnavailable() {
         assertTrue(BackendCapabilities.initial.single { it.backend == BackendKind.BASIC }.available)
         assertFalse(BackendCapabilities.initial.single { it.backend == BackendKind.SHIZUKU }.available)

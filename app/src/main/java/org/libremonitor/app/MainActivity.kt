@@ -22,9 +22,10 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val runtime get() = (application as MonitorApplication).runtime
-    private enum class PendingAction { NONE, HISTORY, OVERLAY }
+    private enum class PendingAction { NONE, HISTORY, OVERLAY, PERFORMANCE }
     private var pendingNotificationAction = PendingAction.NONE
     private var pendingOverlay = false
+    private var pendingPerformanceName = ""
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val action = pendingNotificationAction
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
             it.name == savedInstanceState?.getString("pending_notification_action")
         } ?: PendingAction.NONE
         pendingOverlay = savedInstanceState?.getBoolean("pending_overlay", false) ?: false
+        pendingPerformanceName = savedInstanceState?.getString("pending_performance_name").orEmpty()
         enableEdgeToEdge()
         setContent {
             val state by runtime.state.collectAsStateWithLifecycle()
@@ -82,6 +84,12 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onAutoRestoreRootChange = runtime::setAutoRestoreRoot,
+                onPerformanceStart = { name ->
+                    pendingPerformanceName = name
+                    withNotificationPermission(PendingAction.PERFORMANCE)
+                },
+                onPerformanceStop = { runtime.stopPerformanceRecording() },
+                onPerformanceReview = runtime::reviewPerformance,
             ))
         }
     }
@@ -89,6 +97,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("pending_notification_action", pendingNotificationAction.name)
         outState.putBoolean("pending_overlay", pendingOverlay)
+        outState.putString("pending_performance_name", pendingPerformanceName)
         super.onSaveInstanceState(outState)
     }
     override fun onStart() {
@@ -103,6 +112,7 @@ class MainActivity : ComponentActivity() {
         when (action) {
             PendingAction.HISTORY -> runtime.setHistoryEnabled(true)
             PendingAction.OVERLAY -> runtime.setOverlayEnabled(true)
+            PendingAction.PERFORMANCE -> runtime.startPerformanceRecording(pendingPerformanceName)
             PendingAction.NONE -> Unit
         }
     }

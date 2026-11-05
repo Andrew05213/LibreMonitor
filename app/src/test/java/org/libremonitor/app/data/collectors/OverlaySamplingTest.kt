@@ -8,13 +8,16 @@ import org.libremonitor.core.PrivilegedNodeFrame
 import org.libremonitor.core.Reading
 
 class OverlaySamplingTest {
-    @Test fun overlayRootFrameContainsOnlyTheFixedCpuCounter() {
+    @Test fun overlayRootFrameContainsOnlyCpuAndDisplayedGpuNodes() {
         val nodes = RootProtocol.overlayNodes()
-        assertEquals(listOf("/proc/stat"), nodes.map { it.key })
+        assertEquals(listOf("/proc/stat", "/sys/class/kgsl/kgsl-3d0/gpuclk",
+            "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage", "/sys/class/kgsl/kgsl-3d0/gpubusy"), nodes.map { it.key })
         assertTrue(RootProtocol.compactNodes().containsAll(nodes))
         val script = RootProtocol.frameScript("0123456789abcdef0123456789abcdef", nodes)
         assertTrue(script.contains("/proc/stat"))
-        assertFalse(script.contains("/sys/"))
+        assertTrue(script.contains("/sys/class/kgsl/"))
+        assertFalse(script.contains("/sys/class/thermal/"))
+        assertFalse(script.contains("/sys/devices/system/cpu/"))
         assertFalse(script.contains("dumpsys"))
     }
 

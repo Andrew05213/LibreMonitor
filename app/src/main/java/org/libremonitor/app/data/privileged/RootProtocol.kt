@@ -64,8 +64,10 @@ internal object RootProtocol {
         return result
     }
 
-    /** The overlay only needs aggregate CPU counters, not temperatures, cpufreq or GPU nodes. */
-    fun overlayNodes(): List<Node> = listOf(Node("/proc/stat", PROC_LIMIT, "head -c ${PROC_LIMIT + 1} '/proc/stat'"))
+    /** Four existing fixed nodes: aggregate CPU plus the displayed KGSL GPU readings. */
+    fun overlayNodes(): List<Node> = compactNodes().filter {
+        it.key == "/proc/stat" || it.key.startsWith("/sys/class/kgsl/")
+    }
 
     fun frameScript(id: String, nodes: List<Node>): String {
         require(id.matches(Regex("[a-f0-9]{32}")))

@@ -42,6 +42,6 @@ The helper's third-party aapt2 is not a Google official ARM64 release. Its check
 
 ## Output and installation
 
-Development output is `app/build/outputs/apk/debug/app-debug.apk`. The current debug APK is `0.4.0-dev`; its SHA-256 is recorded in [STATUS.md](STATUS.md). Compilation does not install an app. Install, notification/overlay permission, Root authorization and device smoke tests require a separate user action.
+Development output is `app/build/outputs/apk/debug/app-debug.apk`. The current version is defined by `app/build.gradle.kts`; current validation and APK checksums are recorded in [STATUS.md](STATUS.md). Compilation does not install an app. Install, notification/overlay permission, Root authorization and device smoke tests require a separate user action.
 
 No phone tests have been run unless explicitly listed in [STATUS.md](STATUS.md). CPU/GPU/temperature support must be tested per device, Android/ROM and permission mode, not inferred from build success.

@@ -182,9 +182,13 @@ data class MonitorSettings(
     val autoRestoreRoot: Boolean = false,
 ) {
     init {
-        require(sampleIntervalMs in 1_000L..10_000L)
+        require(sampleIntervalMs in SAMPLE_INTERVAL_RANGE_MS)
         require(historyIntervalMs in 10_000L..3_600_000L)
         require(retentionDays in 1..30)
+    }
+
+    companion object {
+        val SAMPLE_INTERVAL_RANGE_MS: LongRange = 100L..10_000L
     }
 }
 

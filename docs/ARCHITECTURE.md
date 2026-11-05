@@ -1,6 +1,6 @@
 # Architecture
 
-Current as of 0.4.2-dev.
+Current as of 0.5.0-dev.
 
 ## Data path
 
@@ -44,7 +44,7 @@ FPS uses the same operation mutex and sampling loop. `FpsProtocol` executes a fi
 
 - CPU uses cumulative counters and interval deltas. Guest counters are not added twice; iowait is treated as idle and documented.
 - Network rates use monotonic elapsed time, reject counter resets and missing baselines, and do not infer billing or per-app usage.
-- One demand-driven loop serves all consumers. An interactive visible Activity gets the full snapshot; an interactive background overlay gets aggregate CPU, memory, public battery and FPS. Overlay Root frames contain only `/proc/stat`, avoiding the other 101 compact-frame nodes; CPU thermal/frequency, GPU, network, storage and Bluetooth collectors are skipped.
+- One demand-driven loop serves all consumers. An interactive visible Activity gets the full snapshot; an interactive background overlay gets aggregate CPU, GPU, memory, public battery and FPS. Overlay-only Root frames contain `/proc/stat` and the three existing KGSL nodes. Explicit performance recording adds the existing compact CPU-frequency/thermal/battery reads, even without an overlay, while hidden network/storage/Bluetooth collectors remain skipped.
 - When only history is needed (including screen-off), public battery APIs run at the history cadence, without Root or other collectors. No partial sample is published as a fresh full snapshot. Without visible demand or recording, sampling stops.
 - Screen broadcasts are registered only while an Activity or service needs the runtime. Screen-off removes the overlay; screen-on restores it when enabled. No screen polling or wake lock is used.
 - Demand/interval changes restart cancellable work and preserve the history ledger. Root frame/FPS waits use interruptible IO with process cleanup. CPU/network baselines reset before live resume to avoid presenting a long idle average as an instantaneous rate.
@@ -52,6 +52,7 @@ FPS uses the same operation mutex and sampling loop. `FpsProtocol` executes a fi
 - Background inserts do not reload history rows; the UI queries on becoming visible and after visible inserts. Public battery API failures remain nullable CSV fields; recording never launches Root as a fallback.
 - A history generation prevents an older query result from refilling the UI after clear.
 - The foreground UI's freshness clock stops when the lifecycle drops below STARTED.
+- Live/overlay/performance cycles subtract elapsed collection/persistence time from the selected 100ms–10s target. Slow work stays serial without catch-up ticks; errors use a full retry delay. Screen-off pauses performance sampling while independent battery history may continue.
 
 ## Settings and opt-in state
 
@@ -68,6 +69,8 @@ No internet, phone-state, location, broad storage, package-query or boot-autosta
 ## Storage
 
 SQLite v1, nullable measurements, chronological queries with stable row IDs, timestamp index, time-based seven-day cleanup and a 50,000-row cap. UI uses at most 360 recent rows. CSV streams rows with bounded memory, UTF-8, units in headers, missing values empty and formula-sensitive strings protected. Clear requires UI confirmation. No destructive schema upgrade path is provided; later changes require explicit migrations.
+
+Performance sessions use a separate `performance.db` v1 with `sessions` and indexed `samples` tables and cascading session ownership. Compressed version-1 payloads preserve metric value/source/status/reason and the foreground frame target. Database operations use one IO mutex. Finished sessions reject late writes; unfinished rows become interrupted at process initialization. Retention removes oldest ended sessions at 20 sessions / 100,000 total points, and a single session stops at 100,000 points. Review streams all rows for statistics and retains at most 601 preview points, with explicit breaks for missing data between preview points. Session time uses monotonic offsets; wall time is display metadata. See [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Extension strategy
 

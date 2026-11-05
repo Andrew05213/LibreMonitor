@@ -6,6 +6,8 @@ import org.libremonitor.core.DeviceInfo
 import org.libremonitor.core.MonitorSettings
 import org.libremonitor.core.MonitorSnapshot
 import org.libremonitor.core.RootState
+import org.libremonitor.core.PerformanceSession
+import org.libremonitor.core.PerformanceReview
 
 data class MonitorUiState(
     val snapshot: MonitorSnapshot? = null,
@@ -19,6 +21,12 @@ data class MonitorUiState(
     val permissionGrantRunning: Boolean = false,
     val permissionGrantMessage: String? = null,
     val bluetoothPermissionGranted: Boolean = false,
+    val performanceReady: Boolean = false,
+    val performanceBusy: Boolean = false,
+    val activePerformance: PerformanceSession? = null,
+    val performanceSessions: List<PerformanceSession> = emptyList(),
+    val performanceReview: PerformanceReview? = null,
+    val performanceReviewLoading: Boolean = false,
 )
 
 data class MonitorActions(
@@ -33,4 +41,7 @@ data class MonitorActions(
     val onRootGrantPermissions: () -> Unit = {},
     val onBluetoothPermissionRequest: () -> Unit = {},
     val onAutoRestoreRootChange: (Boolean) -> Unit = {},
+    val onPerformanceStart: (String) -> Unit = {},
+    val onPerformanceStop: () -> Unit = {},
+    val onPerformanceReview: (Long) -> Unit = {},
 )

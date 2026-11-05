@@ -181,7 +181,8 @@ fun LibreMonitorScreen(state: MonitorUiState, actions: MonitorActions) {
     val tabs = listOf(
         Triple("概览", Icons.Rounded.Dashboard, 0),
         Triple("电池", Icons.Rounded.BatteryFull, 1),
-        Triple("设置", Icons.Rounded.Settings, 2),
+        Triple("性能", Icons.Rounded.Speed, 2),
+        Triple("设置", Icons.Rounded.Settings, 3),
     )
 
     MaterialTheme(colorScheme = colors) {
@@ -219,6 +220,7 @@ fun LibreMonitorScreen(state: MonitorUiState, actions: MonitorActions) {
                         when (selectedTab) {
                             0 -> OverviewPage(state, actions, accent) { detail = it }
                             1 -> BatteryPage(state, actions, accent, { detail = it }) { confirmClear = true }
+                            2 -> PerformancePage(state, actions)
                             else -> SettingsPage(state, actions, accent) { confirmClear = true }
                         }
                     }
@@ -842,7 +844,7 @@ private fun BatteryHero(battery: BatterySample?, stamp: Long?, onDetail: (Metric
 @Composable
 private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent: Color, requestClear: () -> Unit) {
     SectionCard("刷新频率", Icons.Rounded.Tune) {
-        listOf(listOf(1_000L, 2_000L), listOf(5_000L, 10_000L)).forEach { intervals ->
+        listOf(100L, 200L, 500L, 1_000L, 2_000L, 5_000L, 10_000L).chunked(2).forEach { intervals ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 intervals.forEach { interval ->
                     FilterChip(
@@ -854,6 +856,11 @@ private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent:
                 }
             }
         }
+        Text(
+            "更快刷新会增加资源消耗；实际间隔取决于采集耗时。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
     SectionCard("悬浮窗", Icons.Rounded.Layers) {
         SwitchRow(

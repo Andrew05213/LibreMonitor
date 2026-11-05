@@ -70,7 +70,7 @@ class MonitorPreferences(context: Context) {
     }
 
     fun setSampleIntervalMs(value: Long) {
-        enqueue(Command.SetSampleInterval(value.coerceIn(1_000L, 10_000L)))
+        enqueue(Command.SetSampleInterval(value.coerceIn(MonitorSettings.SAMPLE_INTERVAL_RANGE_MS)))
     }
 
     fun setAutoRestoreRoot(enabled: Boolean) {
@@ -101,7 +101,7 @@ class MonitorPreferences(context: Context) {
         return MonitorSettings(
             historyEnabled = values[HISTORY_ENABLED] as? Boolean ?: defaults.historyEnabled,
             sampleIntervalMs = (values[SAMPLE_INTERVAL] as? Long ?: defaults.sampleIntervalMs)
-                .coerceIn(1_000L, 10_000L),
+                .coerceIn(MonitorSettings.SAMPLE_INTERVAL_RANGE_MS),
             historyIntervalMs = (values[HISTORY_INTERVAL] as? Long ?: defaults.historyIntervalMs)
                 .coerceIn(10_000L, 3_600_000L),
             retentionDays = (values[RETENTION_DAYS] as? Int ?: defaults.retentionDays)

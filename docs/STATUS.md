@@ -1,22 +1,34 @@
-# Current validation status — 0.4.2-dev
+# Current validation status — 0.5.0-dev
 
-Updated 2026-11-04. This is a development prototype, not a production or cross-device validated release.
+Updated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
 
 ## Current build
 
-- Version `0.4.2-dev`, versionCode `14`, application ID `org.libremonitor.app`.
-- Isolated host Kotlin/JVM validation passed **81 core + 59 app tests (140 total)**. Android framework calls in collector tests used host fixtures; the generated FPS script ran only against synthetic commands. No real Root command or phone operation was executed. See [FPS.md](FPS.md).
-- Full Android unit tests, debug packaging and lint are checked by the branch's GitHub Actions workflow. Do not infer a phone validation result from these checks.
-- Prior 0.4.1 build/CI evidence remains in `validation-report-v041.json`; it is not evidence for the revised FPS implementation.
-- This fix has not been installed on the user's phone. Production signing and device FPS accuracy remain unverified.
+- Version `0.5.0-dev`, versionCode `15`, application ID `org.libremonitor.app`.
+- Debug-signed development prerelease: [v0.5.0-dev](https://github.com/Andrew05213/LibreMonitor/releases/tag/v0.5.0-dev), with APK, SHA-256 and the validation report.
+- Local offline validation passed **98 core + 78 app JVM tests (176 total)** with zero failures/errors/skips; debug APK packaging passed; Lint **0 errors, 1 existing HardwareIds warning**. The Android database instrumentation test compiled but was not executed. See [validation-report-performance-sessions.json](validation-report-performance-sessions.json) for the commands, lint counts and APK checksum. Previous 0.4.2 evidence below is historical.
+- No phone installation, Android SQLite device test, gameplay capture, measured 10Hz throughput or overlay visual acceptance has been performed for this version.
 
-## Unreleased background optimization
+## Performance sessions and overlay
+
+- The overlay contains CPU, GPU, system memory and FPS only. Its close control hides the panel; recording has independent explicit start/end controls in the Performance tab and a persistent notification with Stop All.
+- Sessions retain 14 metric readings, sources, availability states and failure reasons. Review shows sample means/minima/maxima, valid counts and a bounded timeline preview; missing readings break the curve rather than becoming zero.
+- Screen-off pauses performance sampling. Reopening after a process death marks an unfinished session interrupted; saved points remain reviewable and recording is not restarted automatically.
+- Separate `performance.db` schema v1, 20-session / 100,000-total-sample retention, and an explicit per-session 100,000-sample stop. Battery schema v1 and seven-column CSV are preserved. See [PERFORMANCE.md](PERFORMANCE.md).
+
+## Unreleased faster sampling
+
+- Added 100ms, 200ms and 500ms refresh choices, retaining 1s, 2s (default), 5s and 10s. Saved settings accept 100ms–10s.
+- Live/overlay sampling targets the selected start-to-start interval by subtracting collection time. Slow reads may exceed that interval; samples do not overlap or catch up missed ticks. Background battery recording still defaults to 60s.
+- Settings boundary/cadence and recording-demand JVM regressions passed as part of the 176-test build above. No phone installation or measured 100ms throughput claim.
+
+## Historical 0.4.2 background optimization
 
 - Based on PR #1 head `79efe22`; full foreground collection, reduced interactive overlay collection, battery-only background recording, and idle/screen-off suspension share one loop. Default background history cadence is 60s rather than the 2s UI interval.
-- Overlay privileged frames read 1 fixed node instead of 102; battery-only history launches no Root frame/FPS processes. Background inserts no longer reload the history list. See [PERFORMANCE.md](PERFORMANCE.md) for scope, work counts and the measurement checklist.
+- The original 0.4.2 overlay frame read 1 fixed CPU node instead of 102; 0.5.0 adds the three existing KGSL nodes for the visible GPU metric. Battery-only history launches no Root frame/FPS processes. Background inserts no longer reload the history list. See [PERFORMANCE.md](PERFORMANCE.md) for the current modes.
 - Local offline Android validation passed: **85 core + 62 app JVM tests (147 total)**, zero failures/errors/skips; debug APK packaging passed; Lint **0 errors, 1 existing HardwareIds warning**. See [validation-report-performance.json](validation-report-performance.json) for the exact command and APK SHA-256. No CI run, phone performance measurement or installation has been performed for these changes.
 
-## Unreleased GPU correction
+## Historical 0.4.2 GPU correction
 
 - KGSL percentage values with `%` now parse correctly; existing `gpubusy` readings provide a validated busy/total fallback. GPU tiles remain visible for source/status/reason inspection when unavailable.
 - FPS discovery now precedes the Root node frame, preserving the node freshness budget; old FPS results expire if subsequent collection is slow. GPU node count and background sampling policy are unchanged.
@@ -38,7 +50,7 @@ These are point-in-time smoke observations. They are not calibration data, not p
 
 ## Implemented
 
-- Compact icon dashboard: CPU hero/gauge, per-core bars, memory/Swap, network, storage, GPU when available.
+- Compact icon dashboard: CPU hero/gauge, per-core bars, memory/Swap, network, storage, and GPU tiles with unavailable-state details.
 - Battery detail page with voltage/current/power/temperature/health/capacity/cycle readings, real-history chart, CSV export and confirmed clear.
 - Bluetooth card using public APIs: adapter state/name/address, LE support, connected profile count, paired devices, type, Class/services, known profile mapping, and explicit unavailable reasons for RSSI/version/battery.
 - Optional Root session: one-shot `su -c` backend compatible with the tested KernelSU device; compact fixed read-only frame; explicit user confirmation; no arbitrary shell.
@@ -50,7 +62,7 @@ These are point-in-time smoke observations. They are not calibration data, not p
 
 ## Not verified / not implemented
 
-- No production signing, Play Store submission, Play policy review or release artifact.
+- Only debug-signed development prereleases; no production signing, Play Store submission or Play policy review.
 - No cross-device/ROM/KernelSU compatibility matrix, no light-theme/large-font/TalkBack/320dp visual acceptance.
 - No measured monitoring overhead or OEM background-survival test.
 - Shizuku backend, universal game-FPS compatibility, non-KGSL GPU utilization, modem capture and widgets remain unimplemented/unverified. KGSL GPU parsing is host-tested but still needs device validation.

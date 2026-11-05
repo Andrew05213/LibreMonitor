@@ -75,9 +75,10 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         )
     }
 
-    suspend fun sample(includeDetails: Boolean = true): MonitorSnapshot = withContext(Dispatchers.IO) {
+    suspend fun sample(includeDetails: Boolean = true, includePerformanceDetails: Boolean = false): MonitorSnapshot = withContext(Dispatchers.IO) {
+        val hardwareDetails = includeDetails || includePerformanceDetails
         // Exactly one privileged frame per shared sample; no implicit authorization request.
-        val privileged = readPrivilegedSample(rootReader, includeDetails, SystemClock::elapsedRealtime)
+        val privileged = readPrivilegedSample(rootReader, hardwareDetails, SystemClock::elapsedRealtime)
         val candidate = privileged.frame
         val elapsed = SystemClock.elapsedRealtime()
         val epoch = System.currentTimeMillis()
@@ -88,11 +89,11 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         }
         // Independent operations are intentionally serial. Cancellation propagates.
         cpu.rootIdentity = "${root.access}:${root.sessionId}"
-        val cpuSample = isolate({ cpu.sample(elapsed, frame, includeDetails) }, cpu::failure)
+        val cpuSample = isolate({ cpu.sample(elapsed, frame, hardwareDetails) }, cpu::failure)
         val memorySample = isolate({ MemoryCollector.sample(context) }, MemoryCollector::failure)
         val baseBattery = isolate({ BatteryCollector.sample(context) }, BatteryCollector::failure)
-        val batterySample = if (includeDetails) isolate({ AdvancedBatteryCollector.enrich(baseBattery, frame) }, { baseBattery }) else baseBattery
-        val gpuSample = if (includeDetails) isolate({ GpuCollector.sample(frame) }, { org.libremonitor.core.GpuSample() }) else org.libremonitor.core.GpuSample()
+        val batterySample = if (hardwareDetails) isolate({ AdvancedBatteryCollector.enrich(baseBattery, frame) }, { baseBattery }) else baseBattery
+        val gpuSample = isolate({ GpuCollector.sample(frame) }, { org.libremonitor.core.GpuSample() })
         val networkSample = if (includeDetails) isolate({ network.sample() }, network::failure) else NetworkSample(
             overlayOmitted(), overlayOmitted(), overlayOmitted(), overlayOmitted())
         val storageSample = if (includeDetails) isolate({ StorageCollector.sample(context) }, StorageCollector::failure)
@@ -110,9 +111,9 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
             val now = SystemClock.elapsedRealtime()
             val currentRoot = rootReader.state.value
             cpu.rootIdentity = "${currentRoot.access}:${currentRoot.sessionId}"
-            val basicCpu = isolate({ cpu.sample(now, includeDetails = includeDetails) }, cpu::failure)
-            val basicBattery = if (includeDetails) isolate({ AdvancedBatteryCollector.enrich(baseBattery, null) }, { baseBattery }) else baseBattery
-            val basicGpu = if (includeDetails) isolate({ GpuCollector.sample(null) }, { org.libremonitor.core.GpuSample() }) else org.libremonitor.core.GpuSample()
+            val basicCpu = isolate({ cpu.sample(now, includeDetails = hardwareDetails) }, cpu::failure)
+            val basicBattery = if (hardwareDetails) isolate({ AdvancedBatteryCollector.enrich(baseBattery, null) }, { baseBattery }) else baseBattery
+            val basicGpu = isolate({ GpuCollector.sample(null) }, { org.libremonitor.core.GpuSample() })
             val fallbackCompleted = SystemClock.elapsedRealtime()
             return@withContext MonitorSnapshot(System.currentTimeMillis(), now, basicCpu, memorySample,
                 basicBattery, networkSample, storageSample, basicGpu, bluetoothSample,

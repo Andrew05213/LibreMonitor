@@ -1,0 +1,57 @@
+{
+  "version": "0.5.0-dev",
+  "version_code": 15,
+  "validation_date": "2026-11-05",
+  "source_base_commit": "73f776baad65b8296c237005a9b69b70311c572b",
+  "source_state": "release source tagged v0.5.0-dev",
+  "build": "BUILD SUCCESSFUL",
+  "command": "source /workspace/.libremonitor-setup/env.sh; /workspace/.libremonitor-setup/gradle-8.9/bin/gradle --offline --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
+  "tests": {
+    "core": {
+      "tests": 98,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 78,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 1,
+    "warning_ids": [
+      "HardwareIds"
+    ]
+  },
+  "instrumentation_tests": {
+    "compiled": true,
+    "executed_on_android": false
+  },
+  "phone_installed": false,
+  "overlay_visual_acceptance": false,
+  "gameplay_recorded": false,
+  "measured_10hz_throughput": false,
+  "ci_run_for_this_change": false,
+  "sampling_options_ms": [
+    100,
+    200,
+    500,
+    1000,
+    2000,
+    5000,
+    10000
+  ],
+  "apk": {
+    "build_path": "app/build/outputs/apk/debug/app-debug.apk",
+    "download_path": "/workspace/shared/downloads/LibreMonitor-0.5.0-dev-performance.apk",
+    "bytes": 16074943,
+    "sha256": "32b849b7090f55865f61b0ad0d2ee48594e2e55a0ae07af13a1c0c2f854a217e",
+    "signing": "debug"
+  },
+  "final_resource_cleanup_command": "source /workspace/.libremonitor-setup/env.sh; /workspace/.libremonitor-setup/gradle-8.9/bin/gradle --offline --no-daemon --max-workers=2 :app:assembleDebug :app:lintDebug (BUILD SUCCESSFUL)",
+  "source_tag": "v0.5.0-dev"
+}

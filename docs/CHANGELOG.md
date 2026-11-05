@@ -2,6 +2,21 @@
 
 Dates are development dates; this is not a published release history.
 
+## 0.5.0-dev — 2026-11-05
+
+- Published as a debug-signed [development prerelease](https://github.com/Andrew05213/LibreMonitor/releases/tag/v0.5.0-dev), with APK, checksum and local validation report.
+- Redesigned the draggable overlay as a compact 2×2 CPU/GPU/memory/FPS panel. Close hides the panel while an explicitly started recording continues; the notification can stop all monitoring.
+- Added opt-in named performance sessions, a Performance tab, local session history, selectable timeline previews and full-session valid-sample means/minima/maxima for 14 metrics, including CPU/GPU frequency, temperature and signed battery-terminal power estimates.
+- Recording uses the shared loop, continues with the app in the background or the panel closed, pauses on screen-off and stops through the app or persistent notification. Process interruption never auto-restarts a session; reopening marks unfinished sessions interrupted and retains saved samples.
+- Added a separate version-1 performance database with compressed versioned reading payloads, preserving source/status/reason. Existing battery schema and CSV remain unchanged. Retention is 20 sessions / 100,000 total samples; a single session stops and saves at 100,000 samples.
+- Overlay-only Root frames now include `/proc/stat` and the three existing KGSL nodes (4 nodes). Recording uses existing compact hardware reads for frequency/thermal/battery detail while skipping network/storage/Bluetooth when the app is hidden. No new Root path or permission is added.
+
+## Unreleased — faster sampling
+
+- Added 100ms, 200ms and 500ms refresh options alongside 1s, 2s, 5s and 10s. Model validation and preference loading/saving share the 100ms–10s bounds; the default remains 2s.
+- Live and overlay samples subtract collection time from the next wait. Slow collectors remain serial, with no overlapping samples or catch-up bursts; errors retain a full retry delay. The selected rate is a target, not a device throughput guarantee.
+- Background battery history retains its independent cadence (60s by default). See [PERFORMANCE.md](PERFORMANCE.md).
+
 ## Unreleased — KGSL GPU usage
 
 - Fixed valid GPU percentage readings such as `35 %` being rejected; added strict `gpubusy` busy/total fallback with invalid/empty windows remaining unavailable.

@@ -8,13 +8,13 @@ A successful compile is not a measurement-accuracy test. Current actual results 
 bash scripts/build-local.sh :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
-- `:core:test`: CPU guest-time accounting, interval usage, component-level counter regression, memory units, malformed values, `Reading` invariants, nullable/quoted/safe CSV, settings bounds.
+- `:core:test`: CPU guest-time accounting, interval usage, component-level counter regression, memory units, malformed values, `Reading` invariants, nullable/quoted/safe CSV, 100ms settings/cadence, performance demand, compressed readings and full-session statistics with bounded/gapped previews.
 - `:app:testDebugUnitTest`: Root protocol framing/limits, compact allowlist, permission script/result parsing, identity probe, HAL/sysfs CPU temperature parsing, battery capacity/health parsing.
 - `:app:assembleDebug`: Kotlin/Compose compile, manifest merge, Android resource pipeline, D8 and debug packaging/signing.
 - `:app:lintDebug`: Android/manifest/API lint; no baseline or suppression merely to hide a failure.
 - GitHub Actions runs the same Gradle tasks on Ubuntu. Current evidence: [run 41625409166](https://github.com/Andrew05213/LibreMonitor/actions/runs/41625409166).
 
-Current result: **77 core + 36 app tests**, 0 failures/errors; Lint **0 errors, 7 dependency-version warnings**.
+Current counts and build evidence are in [STATUS.md](STATUS.md). Android persistence coverage is in `PerformanceStoreTest`; it must be run on an authorized device/emulator with `./gradlew :app:connectedDebugAndroidTest`. A successful instrumentation-test compile is not a device test result.
 
 ## Device smoke test (already partly performed)
 
@@ -32,6 +32,9 @@ The OnePlus PJE110 / Android 17 / KernelSU smoke test confirmed the following on
 9. Kill/relaunch and reboot: no boot autostart; deliberate app opening may restore opted-in recording only after notification checks.
 10. Check 7-day/50k cleanup, low storage, corrupted preferences, clock changes, dark/light theme, 320dp width, large fonts, TalkBack and screenshot redaction.
 11. Measure monitor CPU/battery/wakeup impact before calling it lightweight.
+12. Select 100ms, 200ms and 500ms; close/reopen and verify the selected choice persists. Measure actual start-to-start cadence with and without Root/FPS rather than assuming 10Hz from the setting.
+13. In Performance, name and start a session. Enter a game with the four-metric overlay, close the overlay while recording, then return and end/save. Check CPU/GPU/memory/FPS curves plus CPU/GPU frequency, signed power and temperature; missing data must not appear as zero.
+14. Lock/unlock while recording, stop via notification, revoke notifications, and kill/reopen. Check sampling pauses on screen-off, Stop blocks subsequent writes, interrupted sessions retain prior samples, and no performance session restarts automatically. Verify battery history/CSV independently.
 
 ## Still unverified
 

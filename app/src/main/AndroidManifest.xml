@@ -28,7 +28,7 @@
             android:foregroundServiceType="specialUse"
             android:stopWithTask="false">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-enabled on-device battery history and visible system monitor overlay; no remote monitoring" />
+                android:value="User-enabled on-device performance sessions, battery history and visible system monitor overlay; no remote monitoring" />
         </service>
     </application>
 </manifest>

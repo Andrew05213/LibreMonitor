@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -44,6 +45,10 @@ import org.libremonitor.app.service.MonitorService
 import org.libremonitor.core.BatteryRecord
 import org.libremonitor.core.HistoryCadence
 import org.libremonitor.core.SamplingPlan
+import org.libremonitor.core.PerformancePoint
+import org.libremonitor.core.PerformanceSession
+import org.libremonitor.core.MonitorSnapshot
+import org.libremonitor.app.data.PerformanceStore
 import java.io.OutputStream
 
 /** Process-owned single sampling engine. No boot receiver or background auto-start. */
@@ -56,6 +61,10 @@ class MonitorRuntime(private val context: Context) {
     private var autoRootAttempted = false
     private var rootManuallyDisabled = false
     private val history = BatteryHistoryStore(context)
+    private val performanceStore = PerformanceStore(context)
+    private var performanceStartedElapsed = 0L
+    private var performanceGeneration = 0L
+    private var reviewJob: Job? = null
     private val preferences = MonitorPreferences(context)
     private val visible = MutableStateFlow(false)
     private val serviceActive = MutableStateFlow(false)
@@ -71,6 +80,14 @@ class MonitorRuntime(private val context: Context) {
     private var historyGeneration = 0L
 
     init {
+        scope.launch {
+            try {
+                performanceStore.initialize()
+                refreshPerformanceSessions()
+                mutableState.update { it.copy(performanceReady = true) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { reportError("无法读取性能记录：${e.javaClass.simpleName}") }
+        }
         refreshBluetoothPermission()
         scope.launch {
             rootReader.state.collect { root -> mutableState.update { it.copy(rootState = root) } }
@@ -114,13 +131,16 @@ class MonitorRuntime(private val context: Context) {
         }
         scope.launch {
             // Project only demand fields so snapshots/history/error updates never restart the loop.
-            val options = state.map { it.settings to it.overlayEnabled }.distinctUntilChanged()
-            combine(visible, serviceActive, interactive, options) { shown, service, screen, (settings, overlay) ->
-                SamplingPlan.forDemand(shown, service, screen, overlay, settings)
+            val options = state.map { Triple(it.settings, it.overlayEnabled, it.activePerformance != null) }.distinctUntilChanged()
+            combine(visible, serviceActive, interactive, options) { shown, service, screen, (settings, overlay, performance) ->
+                SamplingPlan.forDemand(shown, service, screen, overlay, settings, performance)
             }.distinctUntilChanged().collectLatest { plan ->
                 if (plan.mode == SamplingPlan.Mode.IDLE) return@collectLatest
                 if (plan.needsSnapshot) sampler.resetRateBaselines()
                 while (currentCoroutineContext().isActive) {
+                    val sampleStarted = SystemClock.elapsedRealtime()
+                    // Failed samples retain a full retry delay even if collection was slow.
+                    var nextDelayMs = if (plan.needsSnapshot) plan.sampleIntervalMs else plan.historyIntervalMs
                     try {
                         // Reuse the ledger across visibility/screen/interval changes.
                         if (plan.mode == SamplingPlan.Mode.HISTORY) {
@@ -135,9 +155,16 @@ class MonitorRuntime(private val context: Context) {
                         val record: BatteryRecord
                         val elapsed: Long
                         if (plan.needsSnapshot) {
-                            val snapshot = sampler.sample(includeDetails = plan.mode == SamplingPlan.Mode.LIVE)
+                            val session = state.value.activePerformance?.takeIf { plan.recordPerformance }
+                            val started = performanceStartedElapsed
+                            val collected = sampler.sample(includeDetails = plan.mode == SamplingPlan.Mode.LIVE,
+                                includePerformanceDetails = plan.recordPerformance)
+                            val snapshot = collected.copy(fps = collected.fps.validatedFor(rootReader.state.value))
                             // Main-thread publication and disableRoot cannot interleave here.
-                            mutableState.update { it.copy(snapshot = snapshot.copy(fps = snapshot.fps.validatedFor(rootReader.state.value))) }
+                            mutableState.update { it.copy(snapshot = snapshot) }
+                            if (session != null && state.value.activePerformance?.id == session.id && snapshot.elapsedRealtimeMillis >= started) {
+                                savePerformancePoint(session, started, snapshot)
+                            }
                             record = BatteryRecord.from(snapshot)
                             elapsed = snapshot.elapsedRealtimeMillis
                         } else {
@@ -155,12 +182,13 @@ class MonitorRuntime(private val context: Context) {
                                 if (visible.value && interactive.value) refreshHistory()
                             }
                         }
+                        nextDelayMs = plan.delayAfterSampleMillis(SystemClock.elapsedRealtime() - sampleStarted)
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) {
                         reportError("采集或记录失败：${e.javaClass.simpleName}；请检查可用空间和系统限制。")
                     }
                     // Error retries also back off; failed inserts never advance the ledger.
-                    delay(if (plan.mode == SamplingPlan.Mode.HISTORY) plan.historyIntervalMs else plan.sampleIntervalMs)
+                    delay(nextDelayMs)
                 }
             }
         }
@@ -182,7 +210,7 @@ class MonitorRuntime(private val context: Context) {
         visible.value = visibleOwners.isNotEmpty()
         if (value) {
             interactive.value = isScreenInteractive()
-            if (!wasVisible) scope.launch { refreshHistory() }
+            if (!wasVisible) scope.launch { refreshHistory(); refreshPerformanceSessions() }
             reconcileService()
             maybeAutoRestoreRoot()
         }
@@ -230,6 +258,99 @@ class MonitorRuntime(private val context: Context) {
     fun setServiceRunning(value: Boolean) {
         serviceActive.value = value
         mutableState.update { it.copy(serviceRunning = value) }
+        if (!value && (state.value.activePerformance != null || state.value.performanceBusy)) stopPerformanceRecording(interrupted = true)
+    }
+
+    fun startPerformanceRecording(name: String) {
+        if (!visible.value || !state.value.performanceReady || state.value.performanceBusy || state.value.activePerformance != null) return
+        stopRequested = false
+        val generation = ++performanceGeneration
+        mutableState.update { it.copy(performanceBusy = true) }
+        // Request the foreground service while the initiating Activity is still visible.
+        reconcileService()
+        if (generation != performanceGeneration || stopRequested) return
+        val started = SystemClock.elapsedRealtime()
+        scope.launch {
+            try {
+                val epoch = System.currentTimeMillis()
+                val title = name.trim().take(80).ifEmpty {
+                    "游戏记录 " + java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(epoch))
+                }
+                val session = performanceStore.start(title, epoch, state.value.settings.sampleIntervalMs)
+                if (generation != performanceGeneration || stopRequested) {
+                    performanceStore.finish(session.id, System.currentTimeMillis(), SystemClock.elapsedRealtime() - started)
+                    return@launch
+                }
+                performanceStartedElapsed = started
+                mutableState.update { it.copy(activePerformance = session, performanceBusy = false, performanceReview = null) }
+                reconcileService()
+                refreshPerformanceSessions()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                if (generation == performanceGeneration) mutableState.update { it.copy(performanceBusy = false) }
+                reportError("无法开始性能记录：${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    fun stopPerformanceRecording(interrupted: Boolean = false) {
+        performanceGeneration++
+        val session = state.value.activePerformance
+        val duration = SystemClock.elapsedRealtime() - performanceStartedElapsed
+        mutableState.update { it.copy(activePerformance = null, performanceBusy = false) }
+        if (session != null) scope.launch {
+            try {
+                performanceStore.finish(session.id, System.currentTimeMillis(), duration, interrupted)
+                refreshPerformanceSessions()
+                if (visible.value) reviewPerformance(session.id)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { reportError("无法完成性能记录：${e.javaClass.simpleName}；已写入的样本仍保存在本机。") }
+        }
+        reconcileService()
+    }
+
+    fun reviewPerformance(id: Long) {
+        reviewJob?.cancel()
+        reviewJob = scope.launch {
+            mutableState.update { it.copy(performanceReviewLoading = true) }
+            try {
+                val review = performanceStore.review(id)
+                mutableState.update { it.copy(performanceReview = review, performanceReviewLoading = false) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutableState.update { it.copy(performanceReviewLoading = false) }
+                reportError("无法打开性能记录：${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    private suspend fun savePerformancePoint(session: PerformanceSession, started: Long, snapshot: MonitorSnapshot) {
+        try {
+            withContext(NonCancellable) {
+                val saved = performanceStore.append(session.id, PerformancePoint.from(snapshot, started))
+                if (state.value.activePerformance?.id == session.id) {
+                    if (saved) mutableState.update { it.copy(activePerformance = it.activePerformance?.copy(
+                        sampleCount = it.activePerformance.sampleCount + 1,
+                        durationMillis = snapshot.elapsedRealtimeMillis - started)) }
+                    else {
+                        stopPerformanceRecording()
+                        reportError("本场记录已达到 ${PerformanceStore.MAX_POINTS} 个样本，已自动结束并保存。")
+                    }
+                }
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            stopPerformanceRecording(interrupted = true)
+            reportError("性能记录写入失败，已停止记录：${e.javaClass.simpleName}；可查看此前已保存的样本。")
+        }
+    }
+
+    private suspend fun refreshPerformanceSessions() {
+        try {
+            val sessions = performanceStore.sessions()
+            mutableState.update { it.copy(performanceSessions = sessions) }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { reportError("无法读取性能记录列表：${e.javaClass.simpleName}") }
     }
 
     /** Called from the foreground UI's explicit Root button. */
@@ -312,6 +433,7 @@ class MonitorRuntime(private val context: Context) {
     fun stopAll() {
         disableRoot()
         stopRequested = true
+        stopPerformanceRecording()
         pendingHistoryIntent = false
         mutableState.update { it.copy(overlayEnabled = false, settings = it.settings.copy(historyEnabled = false)) }
         try { preferences.setHistoryEnabled(false) }
@@ -365,7 +487,8 @@ class MonitorRuntime(private val context: Context) {
 
     private fun reconcileService() {
         val current = state.value
-        val wanted = !stopRequested && (current.settings.historyEnabled || current.overlayEnabled)
+        val wanted = !stopRequested && (current.settings.historyEnabled || current.overlayEnabled ||
+            current.activePerformance != null || current.performanceBusy)
         val intent = Intent(context, MonitorService::class.java)
         if (!wanted) {
             if (current.serviceRunning) context.stopService(intent)

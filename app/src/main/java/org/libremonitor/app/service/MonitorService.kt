@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package org.libremonitor.app.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,6 +9,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -20,11 +22,11 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +37,8 @@ import org.libremonitor.app.MainActivity
 import org.libremonitor.app.MonitorApplication
 import org.libremonitor.app.MonitorUiState
 import org.libremonitor.app.R
+import org.libremonitor.core.PerformanceMetric
+import org.libremonitor.core.PerformancePoint
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -44,7 +48,9 @@ class MonitorService : Service() {
     private val runtime get() = (application as MonitorApplication).runtime
     private val windows by lazy { getSystemService(Context.WINDOW_SERVICE) as WindowManager }
     private var overlay: LinearLayout? = null
-    private var overlayText: TextView? = null
+    private val overlayValues = linkedMapOf<PerformanceMetric, TextView>()
+    private var overlayHandle: TextView? = null
+    private var recordingNotification = false
     private var foregroundReady = false
 
     override fun onCreate() {
@@ -70,11 +76,19 @@ class MonitorService : Service() {
         scope.launch {
             combine(runtime.state, runtime.screenInteractive) { state, interactive -> state to interactive }
                 .collect { (state, interactive) ->
+                    val recording = state.activePerformance != null
+                    if (recordingNotification != recording && MonitorNotifications.allowed(this@MonitorService)) {
+                        recordingNotification = recording
+                        if (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(this@MonitorService,
+                                Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification())
+                        }
+                    }
                     if (!MonitorNotifications.allowed(this@MonitorService)) {
                         runtime.stopAll()
                         runtime.reportError("通知或监控通知渠道已关闭，持续监控已停止。")
                         stopSelf()
-                    } else if (!state.settings.historyEnabled && !state.overlayEnabled) {
+                    } else if (!state.settings.historyEnabled && !state.overlayEnabled && state.activePerformance == null && !state.performanceBusy) {
                         stopSelf()
                     } else if (state.overlayEnabled) {
                         if (!Settings.canDrawOverlays(this@MonitorService)) {
@@ -83,8 +97,7 @@ class MonitorService : Service() {
                             runtime.setOverlayEnabled(false)
                         } else if (interactive) {
                             ensureOverlay()
-                            val text = formatOverlay(state)
-                            if (overlayText?.text?.toString() != text) overlayText?.text = text
+                            updateOverlay(state)
                         } else removeOverlay()
                     } else {
                         removeOverlay()
@@ -119,8 +132,8 @@ class MonitorService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_monitor)
-            .setContentTitle("LibreMonitor 正在监控")
-            .setContentText("本地电池记录或悬浮窗已开启；可随时停止全部监控")
+            .setContentTitle(if (runtime.state.value.activePerformance != null) "LibreMonitor · 性能记录中" else "LibreMonitor 正在监控")
+            .setContentText("点此返回应用查看；停止全部将结束并保存性能记录")
             .setContentIntent(open)
             .setOngoing(true)
             .setSilent(true)
@@ -132,45 +145,60 @@ class MonitorService : Service() {
         if (overlay != null) return
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            background = GradientDrawable().apply { setColor(0xff17212b.toInt()); cornerRadius = dp(14).toFloat() }
+            setPadding(dp(10), dp(2), dp(6), dp(10))
+            background = GradientDrawable().apply {
+                setColor(0xe6192028.toInt()); cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), 0x334f6a7d)
+            }
         }
         val title = DragHandle(this).apply {
-            setText(R.string.overlay_drag_handle)
+            text = "•••"
             textSize = 12f
             setTextColor(0xff74e5c2.toInt())
-            setPadding(0, dp(8), 0, dp(10))
-            contentDescription = getString(R.string.overlay_handle_description)
+            gravity = Gravity.CENTER_VERTICAL
+            contentDescription = "拖动悬浮窗，轻点返回应用"
             setOnClickListener { openMainActivity() }
         }
-        val body = TextView(this).apply {
-            textSize = 12f
-            setTextColor(0xfff2f6fa.toInt())
-            typeface = Typeface.MONOSPACE
+        val toolbar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        toolbar.addView(title, LinearLayout.LayoutParams(0, dp(32), 1f))
+        toolbar.addView(TextView(this).apply {
+            text = "×"; textSize = 20f; gravity = Gravity.CENTER
+            setTextColor(0xffa1afbb.toInt())
+            contentDescription = "关闭悬浮窗，性能记录继续"
+            setOnClickListener { runtime.setOverlayEnabled(false) }
+        }, LinearLayout.LayoutParams(dp(32), dp(32)))
+        panel.addView(toolbar)
+        val metrics = listOf(PerformanceMetric.CPU to "CPU", PerformanceMetric.GPU to "GPU",
+            PerformanceMetric.MEMORY to "内存", PerformanceMetric.FPS to "FPS")
+        metrics.chunked(2).forEach { pair ->
+            val row = LinearLayout(this)
+            pair.forEach { (metric, label) ->
+                val cell = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(0, dp(2), dp(4), dp(3))
+                }
+                cell.addView(TextView(this).apply {
+                    text = label; textSize = 10f; setTextColor(0xffa1afbb.toInt())
+                })
+                val value = TextView(this).apply {
+                    text = "—"; textSize = 18f; typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                    setTextColor(if (metric == PerformanceMetric.FPS) 0xff74e5c2.toInt() else 0xfff2f6fa.toInt())
+                    setOnClickListener { openMainActivity() }
+                }
+                overlayValues[metric] = value
+                cell.addView(value)
+                row.addView(cell, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            }
+            panel.addView(row)
         }
-        val controls = LinearLayout(this)
-        controls.addView(Button(this).apply {
-            setText(R.string.overlay_open)
-            textSize = 12f
-            setOnClickListener { openMainActivity() }
-        }, LinearLayout.LayoutParams(0, dp(48), 1f))
-        controls.addView(Button(this).apply {
-            setText(R.string.overlay_stop)
-            textSize = 12f
-            contentDescription = "停止电池记录并关闭悬浮窗"
-            setOnClickListener { runtime.stopAll(); stopSelf() }
-        }, LinearLayout.LayoutParams(0, dp(48), 1f))
-        panel.addView(title)
-        panel.addView(body)
-        panel.addView(controls)
-        val width = minOf(dp(245), resources.displayMetrics.widthPixels - dp(24)).coerceAtLeast(dp(160))
+        val width = minOf(dp(184), resources.displayMetrics.widthPixels - dp(24)).coerceAtLeast(dp(144))
         val parameters = WindowManager.LayoutParams(width, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT).apply {
                 gravity = Gravity.TOP or Gravity.START
                 x = dp(12)
                 y = dp(120)
-                alpha = 0.8f
+                alpha = 1f
             }
         title.setOnTouchListener(object : View.OnTouchListener {
             var originalX = 0
@@ -205,7 +233,7 @@ class MonitorService : Service() {
         try {
             windows.addView(panel, parameters)
             overlay = panel
-            overlayText = body
+            overlayHandle = title
         } catch (e: Exception) {
             runtime.reportError("无法显示悬浮窗：${e.javaClass.simpleName}")
             runtime.setOverlayEnabled(false)
@@ -217,35 +245,29 @@ class MonitorService : Service() {
             try { windows.removeViewImmediate(it) } catch (_: IllegalArgumentException) { /* Already removed by system. */ }
         }
         overlay = null
-        overlayText = null
+        overlayValues.clear()
+        overlayHandle = null
     }
 
-    private fun formatOverlay(state: MonitorUiState): String {
-        val snapshot = state.snapshot ?: return "正在读取真实设备数据…"
+    private fun updateOverlay(state: MonitorUiState) {
+        val snapshot = state.snapshot
         val now = SystemClock.elapsedRealtime()
-        if (snapshot.elapsedRealtimeMillis > now ||
-            now - snapshot.elapsedRealtimeMillis > maxOf(15_000L, state.settings.sampleIntervalMs * 3)) {
-            return "正在恢复采集，请稍候…"
+        val fresh = snapshot?.takeIf { it.elapsedRealtimeMillis <= now &&
+            now - it.elapsedRealtimeMillis <= maxOf(15_000L, state.settings.sampleIntervalMs * 3) }
+        val point = fresh?.let { PerformancePoint.from(it, 0) }
+        overlayValues.forEach { (metric, view) ->
+            val reading = point?.readings?.get(metric)
+            val value = reading?.value?.takeIf { reading.available && metric.accepts(it) }
+            val text = if (value == null) "—" else String.format(Locale.ROOT,
+                if (metric == PerformanceMetric.FPS) "%.0f" else "%.0f%%", value)
+            if (view.text.toString() != text) view.text = text
+            view.contentDescription = "${metric.label}：$text" +
+                (if (value == null) "，${reading?.reason ?: "等待有效样本"}" else " ${reading?.source.orEmpty()}")
         }
-        fun number(value: Double?, suffix: String) = value?.takeIf { it.isFinite() }?.let {
-            String.format(Locale.ROOT, "%.1f%s", it, suffix)
-        } ?: "不可用"
-        val memory = snapshot.memory.let { m ->
-            val total = m.totalBytes.value
-            val available = m.availableBytes.value
-            if (total != null && available != null && total > 0) number((total - available).toDouble() / total * 100, "%") else "不可用"
-        }
-        val fpsText = if (snapshot.fps.fps.available) {
-            val fps = snapshot.fps.fps.value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"
-            val low = snapshot.fps.onePercentLow.value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"
-            "\nFPS $fps  1% low $low"
-        } else {
-            "\nFPS — ${snapshot.fps.fps.reason.orEmpty().take(48)}"
-        }
-        return "CPU  ${number(snapshot.cpu.usagePercent.value, "%")}\n" +
-            "内存 $memory\n" +
-            "电量 ${snapshot.battery.levelPercent.value?.let { "$it%" } ?: "不可用"}  电池 ${number(snapshot.battery.temperatureC.value, "°C")}\n" +
-            "电池端 ${number(snapshot.battery.powerW.value, " W")}（估算）" + fpsText
+        val recording = state.activePerformance != null
+        overlayHandle?.text = if (recording) "●" else "•••"
+        overlayHandle?.setTextColor(if (recording) 0xffff8078.toInt() else 0xff74e5c2.toInt())
+        overlayHandle?.contentDescription = if (recording) "性能记录中。拖动移动，轻点返回应用结束记录" else "拖动移动，轻点返回应用"
     }
 
     private fun openMainActivity() {

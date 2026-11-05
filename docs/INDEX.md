@@ -5,10 +5,11 @@
 | Document | Purpose |
 |---|---|
 | [README](../README.md) / [中文 README](../README.zh-CN.md) | Project summary, current features, build and privacy boundaries. |
-| [STATUS.md](STATUS.md) | Current 0.4.2 validation, prior device smoke results and open limitations. |
-| [CHANGELOG.md](CHANGELOG.md) | Development history from 0.1.0 to 0.4.2. |
+| [STATUS.md](STATUS.md) | Current 0.5.0 validation, prior device smoke results and open limitations. |
+| [CHANGELOG.md](CHANGELOG.md) | Development history from 0.1.0 to 0.5.0. |
 | [FPS.md](FPS.md) | Read-only FPS compatibility fix, test evidence, measurement limits and pending device checks. |
-| [PERFORMANCE.md](PERFORMANCE.md) | Background sampling modes, deterministic work reduction and phone measurement checklist. |
+| [PERFORMANCE.md](PERFORMANCE.md) | Compact overlay, performance-session recording/review, 100ms–10s cadence, storage and phone validation. |
+| [validation-report-performance-sessions.json](validation-report-performance-sessions.json) | 0.5.0 session/sampling test results, lint, APK checksum and explicit device-validation limits. |
 | [GPU.md](GPU.md) | KGSL percentage/counter formats, Root sampling order, diagnostics and compatibility limits. |
 | [validation-report-gpu.json](validation-report-gpu.json) | GPU correction Android test/build results, lint and APK checksum. |
 | [validation-report-performance.json](validation-report-performance.json) | Local optimization tests, lint, APK checksum and measurement limitations. |

@@ -1,16 +1,22 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 package org.libremonitor.core
 
-/** Only visible consumers need the full hardware/Root snapshot. */
+/** One demand plan serves visible consumers, opt-in performance recording and battery history. */
 data class SamplingPlan(
     val mode: Mode,
     val sampleIntervalMs: Long,
     val historyIntervalMs: Long,
     val recordHistory: Boolean,
+    val recordPerformance: Boolean = false,
 ) {
-    enum class Mode { IDLE, LIVE, OVERLAY, HISTORY }
+    enum class Mode { IDLE, LIVE, OVERLAY, PERFORMANCE, HISTORY }
 
-    val needsSnapshot: Boolean get() = mode == Mode.LIVE || mode == Mode.OVERLAY
+    val needsSnapshot: Boolean get() = mode == Mode.LIVE || mode == Mode.OVERLAY || mode == Mode.PERFORMANCE
+
+    /** Target start-to-start cadence; slow samples run serially without catching up missed ticks. */
+    fun delayAfterSampleMillis(collectionElapsedMillis: Long): Long =
+        if (needsSnapshot) (sampleIntervalMs - collectionElapsedMillis.coerceAtLeast(0L)).coerceAtLeast(0L)
+        else historyIntervalMs
 
     companion object {
         fun forDemand(
@@ -19,16 +25,19 @@ data class SamplingPlan(
             screenInteractive: Boolean,
             overlayEnabled: Boolean,
             settings: MonitorSettings,
+            performanceRecording: Boolean = false,
         ): SamplingPlan {
             val recording = serviceRunning && settings.historyEnabled
             return SamplingPlan(
                 when {
                     screenInteractive && uiVisible -> Mode.LIVE
+                    screenInteractive && serviceRunning && performanceRecording -> Mode.PERFORMANCE
                     screenInteractive && serviceRunning && overlayEnabled -> Mode.OVERLAY
                     recording -> Mode.HISTORY
                     else -> Mode.IDLE
                 },
                 settings.sampleIntervalMs, settings.historyIntervalMs, recording,
+                serviceRunning && screenInteractive && performanceRecording,
             )
         }
     }
