@@ -98,6 +98,8 @@ class FpsScriptTest {
         assertFalse(script.contains("--latency-clear"))
         assertFalse(script.contains("--timestats"))
         assertFalse(script.contains("eval"))
+        // Android 8/8.1 shell has no awk; the script must run with minSdk 26.
+        assertFalse(script.contains("awk"))
         assertTrue(script.contains("head -${FpsProtocol.MAX_CANDIDATES}"))
     }
 }

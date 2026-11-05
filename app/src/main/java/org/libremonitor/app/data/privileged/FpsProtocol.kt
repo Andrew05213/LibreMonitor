@@ -44,9 +44,11 @@ internal object FpsProtocol {
                     -e 's/^RequestedLayerState{//' -e 's/^\[[0-9][0-9]*\]//' \
                     -e 's/ parentId=.*${'$'}//' -e 's/ relativeParentId=.*${'$'}//' -e 's/ mirrorId=.*${'$'}//' \
                     -e 's/ !handle.*${'$'}//' -e 's/ z=.*${'$'}//' -e 's/ layerStack=.*${'$'}//' -e 's/}${'$'}//' \
-                    | awk -v pkg="${'$'}pkg" 'function belongs(s,n, p) { p=index(s,n); return p>0 && (p==1 || substr(s,p-1,1) !~ /[A-Za-z0-9_.]/) } belongs(${'$'}0,pkg "/") || index(${'$'}0,"[" pkg "]") || ${'$'}0==pkg || index(${'$'}0,pkg "#")==1' \
+                    | grep -E -e "(^|[^A-Za-z0-9_.])${'$'}pkg/" -e "\\[${'$'}pkg\\]" -e "^${'$'}pkg#" -e "^${'$'}pkg${'$'}" \
                     | grep -v -E '(^|[ /])(Background|Dim|StatusBar|NavigationBar|Wallpaper|Splash Screen|Starting Window)|^ActivityRecord|^Task=')
-                candidates=${'$'}({ printf '%s\n' "${'$'}layers" | grep -E 'SurfaceView|BLAST'; printf '%s\n' "${'$'}layers"; } | awk 'NF && !seen[${'$'}0]++' | head -$MAX_CANDIDATES)
+                # Android 8/8.1 shell lacks the legacy text tool (added in P). Keep priority and dedupe without it.
+                candidates=${'$'}({ printf '%s\n' "${'$'}layers" | grep -E 'SurfaceView|BLAST' | head -$MAX_CANDIDATES; \
+                    printf '%s\n' "${'$'}layers" | grep -v -E 'SurfaceView|BLAST' | head -$MAX_CANDIDATES; } | grep -v '^${'$'}' | head -$MAX_CANDIDATES)
                 printf '%s\n' "${'$'}candidates" | while IFS= read -r layer; do
                     [ -n "${'$'}layer" ] || continue
                     [ "${'$'}{#layer}" -le 1024 ] || continue
