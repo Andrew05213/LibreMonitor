@@ -14,6 +14,7 @@ internal class PerformanceWriter(
     private val write: suspend (List<PerformancePoint>) -> Boolean,
     private val onFailure: (Exception) -> Unit,
     private val flushMillis: Long = 1_000,
+    private val onCommitted: (Int, Long) -> Unit = { _, _ -> },
 ) {
     // At most 20 queued + 10 in the current transaction. Backpressure never silently drops points.
     private val points = Channel<PerformancePoint>(20)
@@ -23,7 +24,9 @@ internal class PerformanceWriter(
         var started = 0L
         suspend fun flush() {
             if (batch.isEmpty()) return
+            val began = System.nanoTime()
             check(write(batch.toList())) { "记录已停止或达到样本上限" }
+            onCommitted(batch.size, ((System.nanoTime() - began) / 1_000_000).coerceAtLeast(0))
             batch.clear()
         }
         try {

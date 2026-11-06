@@ -53,6 +53,9 @@ class OneShotFpsTest {
         val sample = reader.readFps()!!
         assertTrue(sample.fps.available)
         assertEquals(reader.state.value.sessionId, sample.rootSessionId)
+        val diagnostic = reader.fpsDiagnosticSnapshot()!!
+        assertEquals(121, diagnostic.timestampCounts.single())
+        assertEquals(1, diagnostic.capture!!.layers.single().timestamps.size)
     }
 
     @Test fun acceptsCompleteSlowCandidateExchangeInsteadOfLosingItAtTwoSeconds() = runBlocking {

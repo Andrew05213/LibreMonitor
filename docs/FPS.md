@@ -1,5 +1,7 @@
 # FPS collection — 0.4.2-dev
 
+For the unreleased layered-discovery, cache, failure classification and one-action JSON diagnostics changes, see [FPS_RELIABILITY.md](FPS_RELIABILITY.md). The sections below retain the historical 0.4.2 implementation and validation evidence.
+
 ## What changed
 
 The original implementation used the last package-matching `SurfaceFlinger --list` line verbatim. Android 16+ can print `RequestedLayerState{<name> parentId=...}` here, but `--latency` compares against the exact layer name. Passing the debug description yields a refresh-period header without useful frame timestamps. This is a code/source-supported compatibility cause, not a diagnosis already confirmed on the user's phone.

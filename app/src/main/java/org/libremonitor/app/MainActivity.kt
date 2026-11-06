@@ -43,6 +43,9 @@ class MainActivity : ComponentActivity() {
     private val createCsv = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) runtime.exportCsvTo(uri)
     }
+    private val createDiagnostics = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runtime.exportDiagnosticsTo(uri)
+    }
     private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         runtime.refreshBluetoothPermission()
         if (!granted) runtime.reportError("未授予蓝牙权限，无法读取适配器和已配对设备。")
@@ -99,6 +102,10 @@ class MainActivity : ComponentActivity() {
                 onPerformanceReview = runtime::reviewPerformance,
                 onOverlayOptionsChange = runtime::setOverlayOptions,
                 onPageChange = runtime::setPage,
+                onDiagnosticsExport = {
+                    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date())
+                    createDiagnostics.launch("LibreMonitor-diagnostics-$stamp.json")
+                },
                 onEarbudScan = {
                     val permissions = buildList {
                         add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.ACCESS_COARSE_LOCATION)

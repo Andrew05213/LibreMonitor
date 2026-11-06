@@ -17,6 +17,7 @@ data class MonitorUiState(
     val overlayEnabled: Boolean = false,
     val serviceRunning: Boolean = false,
     val samplingActive: Boolean = false,
+    val samplingDiagnosticsSummary: String = "尚无采集诊断",
     val error: String? = null,
     val rootState: RootState = RootState(),
     val permissionGrantRunning: Boolean = false,
@@ -53,4 +54,5 @@ data class MonitorActions(
     val onEarbudScanStop: () -> Unit = {},
     val onPhonePermissionRequest: () -> Unit = {},
     val onPageChange: (org.libremonitor.core.SamplingPlan.Page) -> Unit = {},
+    val onDiagnosticsExport: () -> Unit = {},
 )

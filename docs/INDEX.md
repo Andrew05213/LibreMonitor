@@ -12,6 +12,8 @@
 | [DEVICE_EXTENSIONS.md](DEVICE_EXTENSIONS.md) | Edge/custom overlay, SoC catalog/core tiers, Bluetooth/PAN/battery and system/mobile/hotspot support limits. |
 | [validation-report-v060.json](validation-report-v060.json) | 0.6.0 test/build/lint results, APK checksum/signing continuity and explicit phone-validation limits. |
 | [FPS.md](FPS.md) | Read-only FPS compatibility fix, test evidence, measurement limits and pending device checks. |
+| [FPS_RELIABILITY.md](FPS_RELIABILITY.md) | Separate FPS branch: candidate rotation/cache, failure classification, coverage guard and explicit JSON diagnostics. |
+| [validation-report-fps-reliability.json](validation-report-fps-reliability.json) | FPS branch's 213 JVM tests, APK/lint/signing results and unexecuted device/Android-test limits. |
 | [PERFORMANCE.md](PERFORMANCE.md) | Compact overlay, performance-session recording/review, 100ms–10s cadence, storage and phone validation. |
 | [validation-report-performance-sessions.json](validation-report-performance-sessions.json) | 0.5.0 session/sampling test results, lint, APK checksum and explicit device-validation limits. |
 | [GPU.md](GPU.md) | KGSL percentage/counter formats, Root sampling order, diagnostics and compatibility limits. |

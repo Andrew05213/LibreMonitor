@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "version": "0.6.0-dev",
+  "branch": "fix/fps-reliability",
+  "base_commit": "27138c4622ae6caada52ebfedbc31505fbf7b095",
+  "checks": {
+    "core": {
+      "tests": 114,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 99,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "apk_build": "passed",
+  "lint": {
+    "errors": 0,
+    "warnings": [
+      "HardwareIds"
+    ]
+  },
+  "android_test_compilation": "passed",
+  "android_test_execution": "not run",
+  "command": "bash scripts/build-local.sh --offline '-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8' :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
+  "apk": {
+    "sha256": "6afda3624031d0be9e991d9b6f8b474e7d2c951da0237508029e7268554a1514",
+    "bytes": 16282721,
+    "signer_sha256": "d93b7a4631ad81c1319c92165e3eeedac7561da12c9c4f05dfabc5567e416e73",
+    "same_signer_as_v060_release": true
+  },
+  "regressions": [
+    "Active fifth layer after four header-only candidates",
+    "Foreground change invalidates cached layer",
+    "Literal cached layer shell characters",
+    "Cached timeout capability and bounded cursor wrap",
+    "Empty/header/pending/malformed/timeout/denial classification",
+    "Rejected denied/timed-out partial timestamp rows",
+    "Empty container does not mask stalled surface",
+    "Bounded response and compact timestamp diagnostics",
+    "Screen-off/demand gaps excluded from actual interval means",
+    "Batch write/backpressure timing",
+    "Historical 1/194 FPS coverage suppresses headline average",
+    "Valid-only target counts identify a lone sample separately from failed queries"
+  ],
+  "limits": [
+    "No phone install or device FPS recovery claim.",
+    "Instrumentation tests, including Android JSON export/SQLite round trips, compiled but were not executed.",
+    "100ms is a target, not measured throughput.",
+    "At most 64 matching layers are discovered, four per poll.",
+    "Run diagnostic ring is in memory (120 snapshots), reset after process exit; selected saved-session failure/target aggregates are reconstructed from persisted points.",
+    "Diagnostic files are exported only through the explicit local document picker; no extra Root reads or automatic upload."
+  ]
+}

@@ -78,6 +78,13 @@ internal fun PerformancePage(state: MonitorUiState, actions: MonitorActions) {
         Text("目标间隔 ${ReadingFormat.interval(state.settings.sampleIntervalMs)}，可在设置中调整，最低 100 毫秒。锁屏暂停性能采样，亮屏后继续。",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+    PerformanceCard {
+        Text("采集诊断", style = MaterialTheme.typography.titleMedium)
+        Text(state.samplingDiagnosticsSummary, style = MaterialTheme.typography.bodySmall)
+        Text("诊断含前台应用包名、图层名及有限的帧时间响应。保存到你选择的位置后可手动分享；不会自动上传。",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(onClick = actions.onDiagnosticsExport, enabled = !state.performanceReviewLoading) { Text("导出采集诊断") }
+    }
     if (state.performanceReviewLoading) {
         Text("正在读取性能记录…", color = MaterialTheme.colorScheme.primary)
     }
@@ -116,13 +123,15 @@ private fun PerformanceReport(review: PerformanceReview) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             listOf(PerformanceMetric.FPS, PerformanceMetric.POWER).forEach { key ->
                 Column(Modifier.weight(1f)) {
-                    Text(if (key == PerformanceMetric.FPS) "平均 FPS" else "平均电池端功率",
+                    Text(if (key == PerformanceMetric.FPS) "FPS 样本均值" else "平均电池端功率",
                         style = MaterialTheme.typography.labelMedium)
-                    Text(formatPerformance(review.stats[key]?.average, key), style = MaterialTheme.typography.headlineSmall,
+                    Text(if (key == PerformanceMetric.FPS && !review.fpsSummaryAvailable) "样本不足" else formatPerformance(review.stats[key]?.average, key), style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
+        if (!review.fpsSummaryAvailable) Text("FPS 有效 ${review.stats[PerformanceMetric.FPS]?.validCount ?: 0}/${review.session.sampleCount}；覆盖不足或样本太少，不能代表本场表现。下方保留有效样本统计。",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HorizontalDivider()
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val ordered = listOf(PerformanceMetric.FPS, PerformanceMetric.CPU, PerformanceMetric.GPU, PerformanceMetric.MEMORY) +

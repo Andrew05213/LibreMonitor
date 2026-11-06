@@ -50,6 +50,8 @@ import org.libremonitor.core.PerformanceSession
 import org.libremonitor.core.MonitorSnapshot
 import org.libremonitor.app.data.PerformanceStore
 import org.libremonitor.app.data.PerformanceWriter
+import org.libremonitor.app.data.SamplingDiagnostics
+import org.libremonitor.app.data.SamplingTrace
 import java.io.OutputStream
 
 /** Process-owned single sampling engine. No boot receiver or background auto-start. */
@@ -66,6 +68,9 @@ class MonitorRuntime(private val context: Context) {
     private var performanceWriter: Pair<Long, PerformanceWriter>? = null
     private val page = MutableStateFlow(SamplingPlan.Page.OVERVIEW)
     private val overlayExpanded = MutableStateFlow(true)
+    private val diagnostics = SamplingDiagnostics()
+    private var samplingContinuity = 0L
+    private var diagnosticsUiAt = 0L
     private var performanceStartedElapsed = 0L
     private var performanceGeneration = 0L
     private var reviewJob: Job? = null
@@ -154,6 +159,7 @@ class MonitorRuntime(private val context: Context) {
                 val (settings, overlay, performance) = demand
                 SamplingPlan.forDemand(shown, service, screen, overlay, settings, performance, selected, expanded)
             }.distinctUntilChanged().collectLatest { plan ->
+                val continuity = ++samplingContinuity
                 mutableState.update { it.copy(samplingActive = plan.needsSnapshot) }
                 if (plan.mode == SamplingPlan.Mode.IDLE) return@collectLatest
                 if (plan.needsSnapshot) sampler.resetRateBaselines()
@@ -161,6 +167,8 @@ class MonitorRuntime(private val context: Context) {
                     val sampleStarted = SystemClock.elapsedRealtime()
                     // Failed samples retain a full retry delay even if collection was slow.
                     var nextDelayMs = if (plan.needsSnapshot) plan.sampleIntervalMs else plan.historyIntervalMs
+                    var sampled: MonitorSnapshot? = null
+                    var enqueueWaitMs = 0L
                     try {
                         // Reuse the ledger across visibility/screen/interval changes.
                         if (plan.mode == SamplingPlan.Mode.HISTORY) {
@@ -182,10 +190,13 @@ class MonitorRuntime(private val context: Context) {
                                 includeNetwork = plan.collectNetwork, includeFps = plan.collectFps,
                                 includeRootDiagnostics = !plan.recordPerformance && plan.sampleIntervalMs >= 1_000)
                             val snapshot = collected.copy(fps = collected.fps.validatedFor(rootReader.state.value))
+                            sampled = snapshot
                             // Main-thread publication and disableRoot cannot interleave here.
                             mutableState.update { it.copy(snapshot = snapshot) }
                             if (session != null && state.value.activePerformance?.id == session.id && snapshot.elapsedRealtimeMillis >= started) {
+                                val enqueueStarted = SystemClock.elapsedRealtime()
                                 savePerformancePoint(session, started, snapshot)
+                                enqueueWaitMs = SystemClock.elapsedRealtime() - enqueueStarted
                             }
                             record = BatteryRecord.from(snapshot)
                             elapsed = snapshot.elapsedRealtimeMillis
@@ -204,9 +215,17 @@ class MonitorRuntime(private val context: Context) {
                                 if (visible.value && interactive.value) refreshHistory()
                             }
                         }
-                        nextDelayMs = plan.delayAfterSampleMillis(SystemClock.elapsedRealtime() - sampleStarted)
+                        val finished = SystemClock.elapsedRealtime()
+                        sampled?.let { snapshot ->
+                            diagnostics.record(SamplingTrace(sampleStarted, plan.sampleIntervalMs, finished - sampleStarted,
+                                plan.mode.name, plan.collectFps, snapshot.fps, sampler.lastTimings,
+                                if (plan.collectFps) rootReader.fpsDiagnosticSnapshot() else null, enqueueWaitMs), continuity)
+                            if (finished - diagnosticsUiAt >= 1_000) { refreshDiagnosticSummary(); diagnosticsUiAt = finished }
+                        }
+                        nextDelayMs = plan.delayAfterSampleMillis(finished - sampleStarted)
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) {
+                        diagnostics.error()
                         reportError("采集或记录失败：${e.javaClass.simpleName}；请检查可用空间和系统限制。")
                     }
                     // Error retries also back off; failed inserts never advance the ledger.
@@ -219,7 +238,12 @@ class MonitorRuntime(private val context: Context) {
     private fun isScreenInteractive(): Boolean =
         context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
 
-    fun setPage(value: SamplingPlan.Page) { page.value = value }
+    fun setPage(value: SamplingPlan.Page) { page.value = value; refreshDiagnosticSummary() }
+    private fun refreshDiagnosticSummary() {
+        val summary = diagnostics.snapshot()
+        val interval = summary.intervalMeanMs?.let { "%.0f".format(java.util.Locale.ROOT, it) } ?: "—"
+        mutableState.update { it.copy(samplingDiagnosticsSummary = "本次运行 FPS 有效 ${summary.fpsValid}/${summary.fpsQueries}；相邻采样开始间隔均值 $interval ms（排除暂停和模式切换空档）") }
+    }
     fun setOverlayExpanded(value: Boolean) { overlayExpanded.value = value }
 
     fun refreshBluetoothPermission() {
@@ -321,10 +345,10 @@ class MonitorRuntime(private val context: Context) {
                 performanceStartedElapsed = started
                 performanceWriter = session.id to PerformanceWriter(scope,
                     write = { performanceStore.appendBatch(session.id, it) },
-                    onFailure = { error -> scope.launch {
+                    onFailure = { error -> diagnostics.writeFailed(); scope.launch {
                         if (state.value.activePerformance?.id == session.id) stopPerformanceRecording(interrupted = true)
                         reportError("性能记录写入失败：${error.javaClass.simpleName}；已停止记录，未落盘样本可能丢失，此前已保存样本仍可查看。")
-                    } })
+                    } }, onCommitted = diagnostics::written)
                 mutableState.update { it.copy(activePerformance = session, performanceBusy = false, performanceReview = null) }
                 reconcileService()
                 refreshPerformanceSessions()
@@ -511,6 +535,30 @@ class MonitorRuntime(private val context: Context) {
     }
 
     suspend fun exportCsv(output: OutputStream) { history.exportCsv(output) }
+
+    fun exportDiagnosticsTo(uri: Uri) {
+        val diagnostic = diagnostics.snapshot()
+        val selected = state.value.performanceReview
+        val device = state.value.device
+        val root = rootReader.state.value
+        scope.launch {
+            try {
+                exportMutex.withLock {
+                    withContext(Dispatchers.IO) {
+                        val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+                        val output = context.contentResolver.openOutputStream(uri, "wt") ?: error("无法打开文件")
+                        output.use { org.libremonitor.app.data.DiagnosticsExport.write(it, diagnostic, mapOf(
+                            "app_version" to version, "manufacturer" to device?.manufacturer.orEmpty(),
+                            "model" to device?.model.orEmpty(), "android" to device?.androidVersion.orEmpty(),
+                            "sdk" to Build.VERSION.SDK_INT.toString(), "root_access" to root.access.name,
+                            "root_session" to root.sessionId.toString()), selected) }
+                    }
+                }
+                Toast.makeText(context, "采集诊断已导出，可手动分享该 JSON 文件", Toast.LENGTH_LONG).show()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { reportError("诊断导出失败：${e.javaClass.simpleName}；目标文件可能不完整，请重新导出。") }
+        }
+    }
 
     fun exportCsvTo(uri: Uri) {
         scope.launch {

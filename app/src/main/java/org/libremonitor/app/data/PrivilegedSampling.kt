@@ -12,6 +12,8 @@ internal data class PrivilegedSample(
     val frame: PrivilegedNodeFrame?,
     val fps: FpsSample,
     val fpsReadElapsedMillis: Long,
+    val fpsDurationMillis: Long = 0,
+    val frameDurationMillis: Long = 0,
 ) {
     fun fpsAt(root: RootState, nowElapsedMillis: Long): FpsSample {
         val current = fps.validatedFor(root)
@@ -32,6 +34,7 @@ internal suspend fun readPrivilegedSample(
     includeNetwork: Boolean = false,
     elapsedMillis: () -> Long,
 ): PrivilegedSample {
+    val started = elapsedMillis()
     val fps = if (!includeFps) FpsSample() else try { reader.readFps() } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) { null } ?: FpsSample()
@@ -41,5 +44,6 @@ internal suspend fun readPrivilegedSample(
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) { null }
-    return PrivilegedSample(frame, fps, fpsReadElapsed)
+    return PrivilegedSample(frame, fps, fpsReadElapsed,
+        (fpsReadElapsed - started).coerceAtLeast(0), (elapsedMillis() - fpsReadElapsed).coerceAtLeast(0))
 }

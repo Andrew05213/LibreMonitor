@@ -2,6 +2,13 @@
 
 Dates are development dates; this is not a published release history.
 
+## Unreleased — FPS reliability (`fix/fps-reliability`)
+
+- Rotated bounded four-layer discovery pages to reach candidates beyond the first four; prioritized SurfaceView before BLAST, cached validated targets for at most five seconds and cached dumpsys timeout capability per Root session. Foreground package checks and Root session validation remain mandatory.
+- Distinguished empty/header-only/pending/malformed/denied/timed-out responses, rejected partial failed responses and stopped empty containers from masking a stalled surface.
+- Added explicit JSON diagnostic export with bounded response previews, run failure frequencies, actual active-sampling intervals, collector timings and batch-write/backpressure timing. No automatic upload, extra Root query, new permission or schema migration is involved.
+- Aggregated saved-session FPS failure/target counts and replaced low-coverage headline averages with “样本不足”. See [FPS_RELIABILITY.md](FPS_RELIABILITY.md) for privacy, reset, candidate and measurement limits.
+
 ## Unreleased — sampling pipeline optimization
 
 - Added page/expanded-overlay sampling demand and skipped unneeded FPS queries; visual preferences no longer restart sampling baselines.

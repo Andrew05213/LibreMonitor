@@ -17,6 +17,7 @@ internal class FpsTracker {
         if (capture.packageName != previousPackage) { latest = emptyMap(); previousPackage = capture.packageName }
         val previous = latest
         val fresh = capture.layers.mapNotNull { layer ->
+            if (layer.failure != null) return@mapNotNull null
             val times = layer.timestamps.filter { it <= nowNanos && it >= nowNanos - WINDOW_NS }
             val last = times.lastOrNull() ?: return@mapNotNull null
             if (nowNanos - last > MAX_AGE_NS || last <= (previous[layer.name] ?: 0L) || times.size < 3) null
@@ -26,8 +27,9 @@ internal class FpsTracker {
         latest = capture.layers.mapNotNull { l -> l.timestamps.lastOrNull { it <= nowNanos }?.let { l.name to it } }.toMap()
         val selected = fresh.sortedWith(compareByDescending<Pair<FpsProtocol.Layer, List<Long>>> { it.first.name.contains("SurfaceView") }
             .thenByDescending { it.second.last() }.thenByDescending { it.second.size }).firstOrNull()
-            ?: return unavailable(capture.layers.firstNotNullOfOrNull { it.failure }
-                ?: "没有新的有效帧；画面可能静止、图层已失效或帧时间已过期", capture.layers.firstOrNull()?.name)
+            ?: return unavailable(if (capture.layers.any { it.failure == null && it.timestamps.isNotEmpty() })
+                "没有新的有效帧；画面可能静止、图层已失效或帧时间已过期"
+                else capture.layers.firstNotNullOfOrNull { it.failure } ?: "没有可用帧时间", capture.layers.firstOrNull()?.name)
         val (layer, times) = selected
         // Long positive intervals are REAL stalls. Do not drop them at the old one-second cutoff.
         val intervals = times.zipWithNext { a, b -> b - a }.filter { it > 0L }

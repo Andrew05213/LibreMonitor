@@ -43,6 +43,9 @@ class OneShotRootReader internal constructor(
     private val random = SecureRandom()
     private val fpsTracker = FpsTracker()
     private val fpsLifecycle = Any()
+    private val fpsQueries = FpsQueryPlanner()
+    @Volatile private var lastFpsAttempt: FpsAttempt? = null
+    internal fun fpsDiagnosticSnapshot(): FpsAttempt? = lastFpsAttempt
     private var metadataAt = Long.MIN_VALUE
     private var metadataSession = -1L
     private var metadata = emptyMap<String, org.libremonitor.core.Reading<String>>()
@@ -59,6 +62,7 @@ class OneShotRootReader internal constructor(
         val ok = RootProtocol.verifyProbe(lines, id)
         if (ok) {
             fpsTracker.reset()
+            synchronized(fpsLifecycle) { fpsQueries.reset() }
             nextSessionId++
             mutableState.value = RootState(RootAccess.GRANTED, "Root one-shot session active", nextSessionId)
         } else {
@@ -159,25 +163,47 @@ class OneShotRootReader internal constructor(
     }
 
     override suspend fun readFps(): FpsSample? {
-        if (!operation.tryLock()) return FpsTracker.unavailable("Root 正在处理其他请求")
+        val began = System.nanoTime()
+        var capture: FpsProtocol.Capture? = null
+        fun report(sample: FpsSample): FpsSample {
+            val full = capture
+            // The diagnostic ring needs a count/newest timestamp, not 120 copies of full frame histories.
+            val compact = full?.copy(layers = full.layers.map { it.copy(timestamps = it.timestamps.takeLast(1)) })
+            lastFpsAttempt = FpsAttempt(((System.nanoTime() - began) / 1_000_000).coerceAtLeast(0), sample, compact,
+                full?.layers?.map { it.timestamps.size }.orEmpty(), monotonicNanos())
+            return sample
+        }
+        if (!operation.tryLock()) return report(FpsTracker.unavailable("Root 正在处理其他请求"))
         return try {
             val root = mutableState.value
-            if (root.access != RootAccess.GRANTED) return FpsTracker.unavailable("请先启用 Root 帧率读取")
+            if (root.access != RootAccess.GRANTED) return report(FpsTracker.unavailable("请先启用 Root 帧率读取"))
             val id = randomId()
+            val query = synchronized(fpsLifecycle) { fpsQueries.query(System.nanoTime()) }
             val output = runInterruptible(Dispatchers.IO) {
-                run(RootProtocol.fpsScript(id), minOf(readTimeoutMs, FpsProtocol.PROCESS_TIMEOUT_MS))
-            } ?: return FpsTracker.unavailable("帧率读取失败或超时；请检查 Root 状态及 ROM 接口支持")
+                run(FpsProtocol.script(id, query), minOf(readTimeoutMs, FpsProtocol.PROCESS_TIMEOUT_MS))
+            }
+            if (output == null) {
+                synchronized(fpsLifecycle) { fpsQueries.reset() }
+                return report(FpsTracker.unavailable("帧率读取失败或超时；可导出采集诊断检查"))
+            }
+            val decoded = FpsProtocol.decode(output, id)
+            capture = decoded
             // A close/replacement while dumpsys was running invalidates this result too.
             synchronized(fpsLifecycle) {
                 val current = mutableState.value
                 if (current.access != RootAccess.GRANTED || current.sessionId != root.sessionId) {
-                    FpsTracker.unavailable("Root 会话已停用或更换，已丢弃迟到帧率")
-                } else fpsTracker.sample(FpsProtocol.decode(output, id), monotonicNanos()).copy(rootSessionId = root.sessionId)
+                    report(FpsTracker.unavailable("Root 会话已停用或更换，已丢弃迟到帧率"))
+                } else {
+                    val sample = fpsTracker.sample(decoded, monotonicNanos()).copy(rootSessionId = root.sessionId)
+                    fpsQueries.accept(decoded, sample, System.nanoTime())
+                    report(sample)
+                }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            FpsTracker.unavailable("帧率响应读取或解析失败")
+            synchronized(fpsLifecycle) { fpsQueries.reset() }
+            report(FpsTracker.unavailable("帧率响应读取或解析失败"))
         } finally {
             operation.unlock()
         }
@@ -187,6 +213,7 @@ class OneShotRootReader internal constructor(
         synchronized(fpsLifecycle) {
             mutableState.value = RootState(RootAccess.DISABLED, "Root session disabled", mutableState.value.sessionId)
             fpsTracker.reset()
+            fpsQueries.reset()
         }
     }
 

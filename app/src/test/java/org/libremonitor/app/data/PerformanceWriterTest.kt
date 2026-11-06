@@ -11,10 +11,13 @@ class PerformanceWriterTest {
 
     @Test fun stopFlushesEveryAcceptedPointInOrderIncludingThePartialBatch() = runBlocking {
         val batches = mutableListOf<List<PerformancePoint>>()
-        val writer = PerformanceWriter(this, { batches.add(it); true }, { throw AssertionError(it) })
+        val committed = mutableListOf<Int>()
+        val writer = PerformanceWriter(this, { batches.add(it); true }, { throw AssertionError(it) },
+            onCommitted = { size, millis -> assertTrue(millis >= 0); committed.add(size) })
         repeat(23) { writer.append(point(it)) }
         writer.closeAndFlush()
         assertEquals(listOf(10, 10, 3), batches.map { it.size })
+        assertEquals(listOf(10, 10, 3), committed)
         assertEquals((0..22).map { it.toLong() }, batches.flatten().map { it.elapsedMillis })
     }
 

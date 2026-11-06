@@ -1,6 +1,6 @@
 # Current validation status — 0.6.0-dev
 
-Updated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
+Updated 2026-11-07 for unreleased branch work. Released 0.6.0 build evidence remains dated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
 
 ## Unreleased sampling optimization
 
@@ -8,7 +8,15 @@ Page/expanded-overlay demand, bounded metadata discovery, reduced steady Root pr
 
 Local offline validation passed **112 core + 88 app JVM tests (200 total)**, APK packaging, Lint (**0 errors, 1 existing HardwareIds warning**) and Android instrumentation-test compilation. Instrumentation tests were not executed. The APK retains the previous release's debug signing certificate. See [validation-report-sampling-optimization.json](validation-report-sampling-optimization.json).
 
-## Current build
+The optimization branch also passed [GitHub Android CI](https://github.com/Andrew05213/LibreMonitor/actions/runs/42266445768) for commit `27138c4`.
+
+## Separate FPS reliability branch
+
+`fix/fps-reliability` adds bounded candidate rotation, validated target/capability caching, precise response failures, coverage-aware headline statistics and one-action local diagnostic export. The user's 1/194-valid FPS screenshot is recorded as device evidence of missing data, not proof of a specific ROM defect. Synthetic fixtures reproduce the first-four-candidate exclusion, but no updated-build phone test has run. See [FPS_RELIABILITY.md](FPS_RELIABILITY.md).
+
+Final local offline validation passed **114 core + 99 app JVM tests (213 total)**, debug APK packaging, Lint (**0 errors, 1 existing HardwareIds warning**) and Android instrumentation-test compilation. Instrumentation tests were not executed. The test APK uses the previous release's debug signing certificate. See [validation-report-fps-reliability.json](validation-report-fps-reliability.json).
+
+## Released 0.6.0 build
 
 - Version `0.6.0-dev`, versionCode `16`, application ID `org.libremonitor.app`.
 - Final local offline validation passed **110 core + 79 app JVM tests (189 total)**, zero failures/errors/skips; debug packaging and Lint passed (**0 errors, 1 existing HardwareIds warning**). Android instrumentation tests compiled but were not executed. APK version/catalog/license assets and the previous development signer were checked. See [validation-report-v060.json](validation-report-v060.json). Historical 0.5.0 evidence remains in [validation-report-performance-sessions.json](validation-report-performance-sessions.json).

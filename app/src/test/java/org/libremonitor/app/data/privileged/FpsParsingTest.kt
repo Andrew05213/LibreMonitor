@@ -114,4 +114,37 @@ class FpsParsingTest {
         val parsed = FpsProtocol.decode(capture(layer to "8333333\n"), id)
         assertFalse(FpsTracker().sample(parsed, 30_000_000_000L).fps.available)
     }
+
+    @Test fun emptyHeaderPendingMalformedAndTimeoutResponsesHaveDistinctDiagnostics() {
+        val fixtures = mapOf("" to "EMPTY_RESPONSE", "8333333\n" to "HEADER_ONLY", "0 0 0\n" to "NO_PRESENT_TIMES",
+            "vendor changed output" to "UNRECOGNIZED_FORMAT", "Timeout waiting" to "TIMEOUT")
+        fixtures.forEach { (text, code) ->
+            val parsed = FpsProtocol.decode(capture(layer to text), id)
+            assertEquals(code, parsed.layers.single().failureCode)
+            assertFalse(FpsTracker().sample(parsed, 30_000_000_000L).fps.available)
+        }
+    }
+
+    @Test fun anEmptyContainerCannotHideTheReasonThatTheActualSurfaceStoppedAdvancing() {
+        val times = sixty()
+        val parsed = FpsProtocol.decode(capture("com.example/.Main#1" to "8333333\n", layer to body(times)), id)
+        val tracker = FpsTracker()
+        assertTrue(tracker.sample(parsed, times.last()).fps.available)
+        val stalled = tracker.sample(parsed, times.last() + 100_000_000)
+        assertTrue(stalled.fps.reason!!.contains("没有新的有效帧"))
+    }
+
+    @Test fun responsePreviewsAreBoundedAndMalformedMetadataIsRejected() {
+        val parsed = FpsProtocol.decode(capture(layer to "x".repeat(8_000)), id)
+        assertEquals(1_536, parsed.layers.single().responsePreview.length)
+        val bad = capture(layer to body(sixty())).replace("LM:$id:LAYER:", "LM:$id:INFO:TOTAL:65\nLM:$id:LAYER:")
+        assertNotNull(FpsProtocol.decode(bad, id).failure)
+    }
+
+    @Test fun partialFrameRowsCannotTurnDeniedOrTimedOutResponsesIntoAValidReading() {
+        for (prefix in listOf("Permission Denial", "Timed out")) {
+            val parsed = FpsProtocol.decode(capture(layer to "$prefix\n${body(sixty())}"), id)
+            assertFalse(FpsTracker().sample(parsed, sixty().last()).fps.available)
+        }
+    }
 }
