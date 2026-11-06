@@ -25,9 +25,9 @@ internal class EnvironmentCollector(private val context: Context) {
     private var rootIdentity = ""
     fun invalidate() { cached = EnvironmentSample() }
 
-    suspend fun sample(reader: RootSession): EnvironmentSample {
+    suspend fun sample(reader: RootSession, includeRootDiagnostics: Boolean = true): EnvironmentSample {
         val now = SystemClock.elapsedRealtime()
-        val identity = "${reader.state.value.access}:${reader.state.value.sessionId}"
+        val identity = "${reader.state.value.access}:${reader.state.value.sessionId}:$includeRootDiagnostics"
         if (identity == rootIdentity && cached.sampledElapsedMillis > 0 && now - cached.sampledElapsedMillis in 0..4_999) return cached
         rootIdentity = identity
         fun read(source: String, block: () -> String?): Reading<String> = try {
@@ -89,11 +89,11 @@ internal class EnvironmentCollector(private val context: Context) {
         network["Wi-Fi 与热点并发能力"] = read("WifiManager.isStaApConcurrencySupported") { if (Build.VERSION.SDK_INT >= 30) wifi?.let { yes(it.isStaApConcurrencySupported) } else null }
         network["桥接双热点能力"] = read("WifiManager.isBridgedApConcurrencySupported") { if (Build.VERSION.SDK_INT >= 31) wifi?.let { yes(it.isBridgedApConcurrencySupported) } else null }
         val root = reader.state.value
-        val diagnostics = if (root.access == RootAccess.GRANTED) try { reader.readDiagnosticsFrame() } catch (e: CancellationException) { throw e } catch (_: Exception) { null } else null
+        val diagnostics = if (includeRootDiagnostics && root.access == RootAccess.GRANTED) try { reader.readDiagnosticsFrame() } catch (e: CancellationException) { throw e } catch (_: Exception) { null } else null
         val stillRoot = reader.state.value.access == RootAccess.GRANTED && reader.state.value.sessionId == root.sessionId
         val diagnostic = diagnostics?.takeIf { stillRoot && it.sessionId == root.sessionId }?.readings?.get("wifi_status")
         if (diagnostic?.available == true) network.putAll(HotspotDiagnostics.parse(diagnostic.value!!)) else {
-            val reason = if (root.access != RootAccess.GRANTED) "普通应用没有可靠的热点状态 API；可在前台手动启用 Root 后尝试只读状态诊断" else "Root 诊断未返回已适配的热点状态，可能超时或受 ROM 限制"
+            val reason = if (!includeRootDiagnostics) "快速采样或性能记录期间暂停慢速热点诊断" else if (root.access != RootAccess.GRANTED) "普通应用没有可靠的热点状态 API；可在前台手动启用 Root 后尝试只读状态诊断" else "Root 诊断未返回已适配的热点状态，可能超时或受 ROM 限制"
             network["SoftAP 状态"] = Reading.unavailable("Android Wi-Fi / Root 过滤诊断", reason)
             network["SoftAP 客户端数"] = Reading.unavailable("Android Wi-Fi / Root 过滤诊断", reason)
         }

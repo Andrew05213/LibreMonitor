@@ -13,6 +13,9 @@ interface RootSession {
     suspend fun readFrame(): PrivilegedNodeFrame?
     /** Fixed reduced frame for the overlay's aggregate CPU counter. */
     suspend fun readOverlayFrame(): PrivilegedNodeFrame? = readFrame()
+    /** Fixed allowlist profiles; implementations may cache sensor discovery, never live values. */
+    suspend fun readSamplingFrame(details: Boolean, network: Boolean): PrivilegedNodeFrame? =
+        if (details) readFrame() else readOverlayFrame()
     /** Filtered read-only diagnostics, requested only by the visible dashboard. */
     suspend fun readDiagnosticsFrame(): PrivilegedNodeFrame? = null
     suspend fun grantPermissions(): PermissionGrantResult

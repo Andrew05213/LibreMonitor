@@ -5,6 +5,28 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SamplingPlanTest {
+    @Test fun collapsedOverlayPausesWithoutInterruptingAnExplicitRecording() {
+        val settings = MonitorSettings()
+        assertEquals(SamplingPlan.Mode.IDLE, SamplingPlan.forDemand(false, true, true, true, settings,
+            overlayExpanded = false).mode)
+        assertEquals(SamplingPlan.Mode.PERFORMANCE, SamplingPlan.forDemand(false, true, true, true, settings,
+            performanceRecording = true, overlayExpanded = false).mode)
+    }
+
+    @Test fun pageAndSelectedFieldsControlExpensiveCollectors() {
+        val settings = MonitorSettings(overlay = OverlayOptions(metrics = listOf(OverlayMetric.CPU, OverlayMetric.DOWNLOAD)))
+        val overlay = SamplingPlan.forDemand(false, true, true, true, settings)
+        assertFalse(overlay.collectFps)
+        assertTrue(overlay.collectNetwork)
+        assertFalse(overlay.hardwareDetails)
+        val battery = SamplingPlan.forDemand(true, false, true, false, settings, page = SamplingPlan.Page.BATTERY)
+        assertTrue(battery.hardwareDetails)
+        assertFalse(battery.collectFps)
+        assertFalse(battery.dashboard)
+        for (page in listOf(SamplingPlan.Page.SETTINGS, SamplingPlan.Page.PERFORMANCE)) {
+            assertEquals(SamplingPlan.Mode.IDLE, SamplingPlan.forDemand(true, false, true, false, settings, page = page).mode)
+        }
+    }
     @Test fun fastLiveAndOverlayCadenceIncludesCollectionTime() {
         val settings = MonitorSettings(sampleIntervalMs = 100, historyEnabled = true)
         val live = SamplingPlan.forDemand(true, true, true, true, settings)

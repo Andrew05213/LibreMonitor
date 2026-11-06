@@ -7,6 +7,10 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -16,6 +20,8 @@ import kotlin.math.roundToInt
 
 @Composable
 internal fun OverlayCustomization(options: OverlayOptions, change: (OverlayOptions) -> Unit) {
+    var opacity by remember(options.opacityPercent) { mutableFloatStateOf(options.opacityPercent.toFloat()) }
+    var textSize by remember(options.textSizeSp) { mutableFloatStateOf(options.textSizeSp.toFloat()) }
     Text("显示内容与顺序", style = MaterialTheme.typography.titleSmall)
     options.metrics.forEachIndexed { index, metric ->
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -46,11 +52,13 @@ internal fun OverlayCustomization(options: OverlayOptions, change: (OverlayOptio
         listOf(1, 2).forEach { columns -> FilterChip(selected = options.columns == columns,
             onClick = { change(options.copy(columns = columns)) }, label = { Text("$columns 列布局") }) }
     }
-    Text("背景不透明度 ${options.opacityPercent}%")
-    Slider(value = options.opacityPercent.toFloat(), onValueChange = { change(options.copy(opacityPercent = it.roundToInt())) },
+    Text("背景不透明度 ${opacity.roundToInt()}%")
+    Slider(value = opacity, onValueChange = { opacity = it },
+        onValueChangeFinished = { change(options.copy(opacityPercent = opacity.roundToInt())) },
         valueRange = 30f..100f, steps = 13)
-    Text("数字大小 ${options.textSizeSp} sp")
-    Slider(value = options.textSizeSp.toFloat(), onValueChange = { change(options.copy(textSizeSp = it.roundToInt())) },
+    Text("数字大小 ${textSize.roundToInt()} sp")
+    Slider(value = textSize, onValueChange = { textSize = it },
+        onValueChangeFinished = { change(options.copy(textSizeSp = textSize.roundToInt())) },
         valueRange = 12f..24f, steps = 11)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("拖至边缘吸附收起", Modifier.weight(1f))

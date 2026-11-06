@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "version": "0.6.0-dev",
+  "branch": "perf/sampling-pipeline",
+  "base_commit": "7a093ca67fec0a3ab347a6ac134bdce115f2c3d5",
+  "checks": {
+    "core_tests": 112,
+    "app_unit_tests": 88,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "apk_build": "passed",
+    "lint_errors": 0,
+    "lint_warnings": 1,
+    "existing_warning": "HardwareIds",
+    "android_test_compilation": "passed",
+    "android_test_execution": "not run"
+  },
+  "command": "gradle --offline --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
+  "apk": {
+    "sha256": "f9e79082d88164d1669e0b9fd383bb87592ad7540d082ede0ed4323c93f1144e",
+    "bytes": 16133921,
+    "signer_sha256": "d93b7a4631ad81c1319c92165e3eeedac7561da12c9c4f05dfabc5567e416e73",
+    "same_signer_as_v060_release": true
+  },
+  "limits": [
+    "No phone/emulator execution or measured CPU, battery, or 100ms-throughput claim.",
+    "At most 30 points can be uncommitted in the writer; process termination can lose them. Normal Stop drains accepted points.",
+    "FPS layer selection and diagnostics are a separate branch; no FPS device-fix claim."
+  ]
+}

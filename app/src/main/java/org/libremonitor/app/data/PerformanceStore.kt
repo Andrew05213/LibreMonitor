@@ -38,20 +38,29 @@ internal class PerformanceStore(context: Context, databaseName: String = "perfor
     }
 
     /** Returns false if stopped or capped; the status guard prevents writes after Finish. */
-    suspend fun append(id: Long, point: PerformancePoint): Boolean = database { db ->
-        db.beginTransaction()
-        try {
-            val allowed = db.rawQuery("SELECT sample_count FROM sessions WHERE _id = ? AND status = ?",
-                arrayOf(id.toString(), PerformanceSession.RECORDING)).use { it.moveToFirst() && it.getInt(0) < MAX_POINTS }
-            if (!allowed) return@database false
-            db.insertOrThrow("samples", null, ContentValues().apply {
-                put("session_id", id); put("elapsed_ms", point.elapsedMillis); put("payload", PerformanceCodec.encode(point))
-            })
-            db.execSQL("UPDATE sessions SET sample_count = sample_count + 1, duration_ms = ? WHERE _id = ?", arrayOf(point.elapsedMillis, id))
-            prune(db)
-            db.setTransactionSuccessful()
-            true
-        } finally { db.endTransaction() }
+    suspend fun append(id: Long, point: PerformancePoint): Boolean = appendBatch(id, listOf(point))
+
+    /** Compression happens outside the DB lock; one transaction commits a bounded batch. */
+    suspend fun appendBatch(id: Long, points: List<PerformancePoint>): Boolean = withContext(Dispatchers.IO) {
+        require(points.isNotEmpty() && points.size <= 10)
+        val encoded = points.map { it to PerformanceCodec.encode(it) }
+        database { db ->
+            db.beginTransaction()
+            try {
+                val allowed = db.rawQuery("SELECT sample_count FROM sessions WHERE _id = ? AND status = ?",
+                    arrayOf(id.toString(), PerformanceSession.RECORDING)).use { it.moveToFirst() && it.getInt(0) + points.size <= MAX_POINTS }
+                if (!allowed) return@database false
+                encoded.forEach { (point, payload) ->
+                    db.insertOrThrow("samples", null, ContentValues().apply {
+                        put("session_id", id); put("elapsed_ms", point.elapsedMillis); put("payload", payload)
+                    })
+                }
+                db.execSQL("UPDATE sessions SET sample_count = sample_count + ?, duration_ms = ? WHERE _id = ?", arrayOf<Any>(points.size, points.last().elapsedMillis, id))
+                prune(db)
+                db.setTransactionSuccessful()
+                true
+            } finally { db.endTransaction() }
+        }
     }
 
     suspend fun finish(id: Long, epoch: Long, duration: Long, interrupted: Boolean = false) = database { db ->
@@ -70,19 +79,36 @@ internal class PerformanceStore(context: Context, databaseName: String = "perfor
 
     suspend fun close() = withContext(Dispatchers.IO) { mutex.withLock { helper.close() } }
 
-    suspend fun review(id: Long): PerformanceReview = database { db ->
-        val session = db.rawQuery("SELECT * FROM sessions WHERE _id = ?", arrayOf(id.toString())).use {
-            check(it.moveToFirst()) { "记录已不存在" }; it.session()
+    suspend fun review(id: Long): PerformanceReview = withContext(Dispatchers.IO) {
+        val (session, endId) = database { db ->
+            val session = db.rawQuery("SELECT * FROM sessions WHERE _id = ?", arrayOf(id.toString())).use {
+                check(it.moveToFirst()) { "记录已不存在" }; it.session()
+            }
+            val end = db.rawQuery("SELECT COALESCE(MAX(_id), 0) FROM samples WHERE session_id = ?", arrayOf(id.toString())).use {
+                it.moveToFirst(); it.getLong(0)
+            }
+            session to end
         }
-        val caller = currentCoroutineContext()
-        db.rawQuery("SELECT payload FROM samples WHERE session_id = ? ORDER BY elapsed_ms, _id", arrayOf(id.toString())).use { cursor ->
-            PerformanceReview.build(session, sequence {
-                while (cursor.moveToNext()) {
-                    caller.ensureActive()
-                    yield(PerformanceCodec.decode(cursor.getBlob(0)))
+        val builder = PerformanceReview.Builder(session)
+        var after = 0L
+        var afterElapsed = -1L
+        var reviewed = 0
+        while (reviewed < session.sampleCount) {
+            currentCoroutineContext().ensureActive()
+            val chunk = database { db ->
+                db.rawQuery("SELECT _id, elapsed_ms, payload FROM samples WHERE session_id = ? AND _id <= ? AND (elapsed_ms > ? OR (elapsed_ms = ? AND _id > ?)) ORDER BY elapsed_ms, _id LIMIT 128",
+                    arrayOf(id.toString(), endId.toString(), afterElapsed.toString(), afterElapsed.toString(), after.toString())).use { cursor ->
+                    buildList { while (cursor.moveToNext()) add(Triple(cursor.getLong(0), cursor.getLong(1), cursor.getBlob(2))) }
                 }
-            })
+            }
+            check(chunk.isNotEmpty()) { "记录已被清理，请重新打开" }
+            // Decoding and aggregation never hold the shared writer mutex.
+            chunk.forEach { (rowId, elapsed, payload) ->
+                currentCoroutineContext().ensureActive()
+                builder.add(PerformanceCodec.decode(payload)); after = rowId; afterElapsed = elapsed; reviewed++
+            }
         }
+        builder.build()
     }
 
     private suspend fun <T> database(block: suspend (SQLiteDatabase) -> T): T = withContext(Dispatchers.IO) {

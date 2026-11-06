@@ -2,6 +2,13 @@
 
 Dates are development dates; this is not a published release history.
 
+## Unreleased — sampling pipeline optimization
+
+- Added page/expanded-overlay sampling demand and skipped unneeded FPS queries; visual preferences no longer restart sampling baselines.
+- Cached thermal discovery and battery metadata for up to 30 seconds, retained fresh live values, and reduced steady Root frames to fixed subsets of the existing allowlist. Paused slow Root hotspot diagnostics during recording/sub-second sampling.
+- Added a bounded background writer with ten-point/one-second-target batches, explicit backpressure/failure handling and a Stop drain. Review now reads 128-row chunks and decompresses outside the writer lock.
+- Updated overlay opacity in place, saved sliders on release and avoided formatting hidden/unchanged/unselected values. See [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) for crash-loss limits and validation boundaries.
+
 ## 0.6.0-dev — 2026-11-05
 
 - Added physical left/right edge docking with translucent semicircular arrows, tap-to-expand, draggable handles, long-press collapse, rotation/inset clamping, and scrolling for large custom layouts.

@@ -173,6 +173,7 @@ private data class LiveState(val label: String, val container: Color, val conten
 @Composable
 fun LibreMonitorScreen(state: MonitorUiState, actions: MonitorActions) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(selectedTab) { actions.onPageChange(org.libremonitor.core.SamplingPlan.Page.entries[selectedTab]) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var detail by remember { mutableStateOf<MetricDetail?>(null) }
     val dark = isSystemInDarkTheme()
@@ -299,6 +300,7 @@ private fun AppHeader(state: MonitorUiState) {
 
 @Composable
 private fun liveState(state: MonitorUiState): LiveState {
+    if (!state.samplingActive) return LiveState("按需暂停", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
     val snapshot = state.snapshot
     val elapsedNow = foregroundElapsedTime()
     val age = snapshot?.elapsedRealtimeMillis?.takeIf { it in 0L..elapsedNow }?.let { elapsedNow - it }

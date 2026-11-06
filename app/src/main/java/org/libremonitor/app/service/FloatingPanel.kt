@@ -27,7 +27,8 @@ import kotlin.math.roundToInt
 
 /** Window-only presentation. Sampling and recording remain owned by MonitorRuntime. */
 internal class FloatingPanel(private val context: Context, private val windows: WindowManager,
-    private val open: () -> Unit, private val close: () -> Unit, private val error: (String) -> Unit) {
+    private val open: () -> Unit, private val close: () -> Unit, private val error: (String) -> Unit,
+    private val expanded: (Boolean) -> Unit) {
     private var window: View? = null
     private var parameters: WindowManager.LayoutParams? = null
     private var options = OverlayOptions()
@@ -36,6 +37,7 @@ internal class FloatingPanel(private val context: Context, private val windows: 
     private var grip: TextView? = null
     private var edge = DockEdge.NONE
     private var collapsed = false
+    private var lastSnapshot: MonitorSnapshot? = null
     private var x = dp(12)
     private var y = dp(120)
 
@@ -55,18 +57,22 @@ internal class FloatingPanel(private val context: Context, private val windows: 
 
     fun render(state: MonitorUiState) {
         options = state.settings.overlay
-        if (!options.edgeSnap && collapsed) { collapsed = false; edge = DockEdge.NONE; hide() }
-        if (window != null && lastOptions != options) hide()
+        if (!options.edgeSnap && collapsed) { collapsed = false; expanded(true); edge = DockEdge.NONE; hide() }
+        if (window != null && lastOptions?.copy(opacityPercent = options.opacityPercent) != options) hide()
         if (window == null) create()
+        if (lastOptions != options) { window?.background = background(collapsed); lastOptions = options }
         val recording = state.activePerformance != null
         if (!collapsed) {
             grip?.text = if (recording) "●" else "•••"
             grip?.setTextColor(if (recording) 0xffff8078.toInt() else 0xff74e5c2.toInt())
             grip?.contentDescription = if (recording) "性能记录中；拖动移动，点击返回应用，长按收起" else "拖动移动，点击返回应用，长按收起"
         } else grip?.contentDescription = "${if (recording) "性能记录中。" else ""}边缘悬浮窗，点击展开，拖动改变位置"
+        if (collapsed) return
         val now = SystemClock.elapsedRealtime()
         val snapshot = state.snapshot?.takeIf { now - it.elapsedRealtimeMillis in 0..maxOf(15_000L, state.settings.sampleIntervalMs * 3) }
-        val point = snapshot?.let { PerformancePoint.from(it, 0) }
+        if (snapshot === lastSnapshot) return
+        lastSnapshot = snapshot
+        val point = snapshot?.let { PerformancePoint.from(it, 0, options.metrics.mapNotNull { metric -> metric.performance }.toSet()) }
         values.forEach { (metric, view) ->
             val reading = when (metric) {
                 OverlayMetric.DOWNLOAD -> snapshot?.network?.downloadBytesPerSecond
@@ -89,11 +95,12 @@ internal class FloatingPanel(private val context: Context, private val windows: 
 
     fun hide() {
         window?.let { runCatching { windows.removeViewImmediate(it) } }
-        window = null; parameters = null; values.clear(); grip = null
+        window = null; parameters = null; values.clear(); grip = null; lastSnapshot = null
     }
     fun configurationChanged() { hide() }
 
     private fun create() {
+        expanded(!collapsed)
         val screen = area()
         val panel = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val title = Grip(context).apply {
@@ -175,8 +182,8 @@ internal class FloatingPanel(private val context: Context, private val windows: 
         }
     }
     private fun nearestEdge(): DockEdge = if (x < area().left + area().width / 2) DockEdge.LEFT else DockEdge.RIGHT
-    private fun dock(target: DockEdge) { edge = target; collapsed = true; hide(); create() }
-    private fun expand() { collapsed = false; hide(); create() }
+    private fun dock(target: DockEdge) { edge = target; collapsed = true; expanded(false); hide(); create() }
+    private fun expand() { collapsed = false; expanded(true); hide(); create() }
 
     private fun drag(handle: Grip, panel: View, p: WindowManager.LayoutParams) {
         handle.setOnTouchListener(object : View.OnTouchListener {

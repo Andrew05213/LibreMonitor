@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
                 onPerformanceStop = { runtime.stopPerformanceRecording() },
                 onPerformanceReview = runtime::reviewPerformance,
                 onOverlayOptionsChange = runtime::setOverlayOptions,
+                onPageChange = runtime::setPage,
                 onEarbudScan = {
                     val permissions = buildList {
                         add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.ACCESS_COARSE_LOCATION)

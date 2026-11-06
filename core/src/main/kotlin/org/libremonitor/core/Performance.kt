@@ -42,7 +42,8 @@ data class PerformancePoint(
     val target: Reading<String> = Reading.unavailable("SurfaceFlinger", "未读取图层"),
 ) {
     companion object {
-        fun from(snapshot: MonitorSnapshot, sessionStartedElapsedMillis: Long): PerformancePoint {
+        fun from(snapshot: MonitorSnapshot, sessionStartedElapsedMillis: Long,
+            metrics: Set<PerformanceMetric> = PerformanceMetric.entries.toSet()): PerformancePoint {
             fun Reading<out Number>.number(): Reading<Double> =
                 Reading(value?.toDouble(), source, status, reason)
             fun missing(source: String, explanation: String, inputs: List<Reading<*>>): Reading<Double> {
@@ -52,26 +53,32 @@ data class PerformancePoint(
                 return Reading.unavailable(source, cause?.reason?.let { "$explanation：$it" } ?: explanation,
                     cause?.status ?: ReadingStatus.UNSUPPORTED)
             }
-            val frequencies = snapshot.cpu.frequenciesMhz.filter { it.available && (it.value ?: 0) > 0 }
-            val cpuFrequency = if (frequencies.isEmpty()) missing("CPU 频率", "没有可读的核心频率", snapshot.cpu.frequenciesMhz)
+            val frequencies by lazy { snapshot.cpu.frequenciesMhz.filter { it.available && (it.value ?: 0) > 0 } }
+            val cpuFrequency by lazy { if (frequencies.isEmpty()) missing("CPU 频率", "没有可读的核心频率", snapshot.cpu.frequenciesMhz)
                 else Reading(frequencies.map { it.value!!.toDouble() }.average(), "已读取的 ${frequencies.size} 个核心频率均值",
-                    reason = "仅统计本次可读核心，不是所有核心的固定频率")
+                    reason = "仅统计本次可读核心，不是所有核心的固定频率") }
             val total = snapshot.memory.totalBytes
             val available = snapshot.memory.availableBytes
-            val memory = if (total.available && available.available && total.value!! > 0 && available.value!! in 0..total.value)
+            val memory by lazy { if (total.available && available.available && total.value!! > 0 && available.value!! in 0..total.value)
                 Reading((total.value - available.value).toDouble() / total.value * 100.0, "系统总内存减可用内存")
-                else missing("系统内存", "总内存或可用内存无效，无法计算占用", listOf(total, available))
+                else missing("系统内存", "总内存或可用内存无效，无法计算占用", listOf(total, available)) }
             val values = with(snapshot) {
-                mapOf(
-                    PerformanceMetric.CPU to cpu.usagePercent, PerformanceMetric.GPU to gpu.usagePercent,
-                    PerformanceMetric.MEMORY to memory, PerformanceMetric.FPS to fps.fps,
-                    PerformanceMetric.FPS_LOW to fps.onePercentLow, PerformanceMetric.FRAME_TIME to fps.frameTimeMs,
-                    PerformanceMetric.POWER to battery.powerW, PerformanceMetric.CPU_FREQUENCY to cpuFrequency,
-                    PerformanceMetric.GPU_FREQUENCY to gpu.frequencyMhz, PerformanceMetric.CPU_TEMPERATURE to cpu.temperatureC,
-                    PerformanceMetric.BATTERY_TEMPERATURE to battery.temperatureC,
-                    PerformanceMetric.BATTERY_LEVEL to battery.levelPercent.number(), PerformanceMetric.CURRENT to battery.currentMa,
-                    PerformanceMetric.VOLTAGE to battery.voltageV,
-                )
+                metrics.associateWith { metric -> when (metric) {
+                    PerformanceMetric.CPU -> cpu.usagePercent
+                    PerformanceMetric.GPU -> gpu.usagePercent
+                    PerformanceMetric.MEMORY -> memory
+                    PerformanceMetric.FPS -> fps.fps
+                    PerformanceMetric.FPS_LOW -> fps.onePercentLow
+                    PerformanceMetric.FRAME_TIME -> fps.frameTimeMs
+                    PerformanceMetric.POWER -> battery.powerW
+                    PerformanceMetric.CPU_FREQUENCY -> cpuFrequency
+                    PerformanceMetric.GPU_FREQUENCY -> gpu.frequencyMhz
+                    PerformanceMetric.CPU_TEMPERATURE -> cpu.temperatureC
+                    PerformanceMetric.BATTERY_TEMPERATURE -> battery.temperatureC
+                    PerformanceMetric.BATTERY_LEVEL -> battery.levelPercent.number()
+                    PerformanceMetric.CURRENT -> battery.currentMa
+                    PerformanceMetric.VOLTAGE -> battery.voltageV
+                } }
             }.mapValues { (metric, reading) ->
                 if (!reading.available || reading.value?.let(metric::accepts) == true) reading
                 else Reading.unavailable(reading.source, "样本无效，未作为 0 记录", ReadingStatus.ERROR)
@@ -93,36 +100,43 @@ data class PerformanceReview(
     val gapsBefore: Map<Long, Set<PerformanceMetric>> = emptyMap(),
 ) {
     companion object {
-        fun build(session: PerformanceSession, points: Sequence<PerformancePoint>): PerformanceReview {
-            val count = IntArray(PerformanceMetric.entries.size)
-            val sum = DoubleArray(count.size)
-            val min = DoubleArray(count.size) { Double.POSITIVE_INFINITY }
-            val max = DoubleArray(count.size) { Double.NEGATIVE_INFINITY }
-            val stride = ((session.sampleCount + 599) / 600).coerceAtLeast(1)
-            val timeline = ArrayList<PerformancePoint>()
-            val gaps = LinkedHashMap<Long, Set<PerformanceMetric>>()
-            val missing = mutableSetOf<PerformanceMetric>()
-            var last: PerformancePoint? = null
-            points.forEachIndexed { index, point ->
-                PerformanceMetric.entries.forEach { metric ->
-                    val reading = point.readings[metric]
-                    if (reading?.value?.let { reading.available && metric.accepts(it) } != true) missing.add(metric)
-                }
-                point.readings.forEach { (metric, reading) ->
-                    val value = reading.value?.takeIf { reading.available && metric.accepts(it) }
-                    if (value != null) {
-                        val i = metric.ordinal
-                        count[i]++; sum[i] += value
-                        min[i] = minOf(min[i], value); max[i] = maxOf(max[i], value)
-                    }
-                }
-                if (index % stride == 0) {
-                    timeline.add(point)
-                    if (missing.isNotEmpty()) gaps[point.elapsedMillis] = missing.toSet()
-                    missing.clear()
-                }
-                last = point
+        fun build(session: PerformanceSession, points: Sequence<PerformancePoint>): PerformanceReview =
+            Builder(session).apply { points.forEach(::add) }.build()
+    }
+
+    class Builder(private val session: PerformanceSession) {
+        private val count = IntArray(PerformanceMetric.entries.size)
+        private val sum = DoubleArray(count.size)
+        private val min = DoubleArray(count.size) { Double.POSITIVE_INFINITY }
+        private val max = DoubleArray(count.size) { Double.NEGATIVE_INFINITY }
+        private val stride = ((session.sampleCount + 599) / 600).coerceAtLeast(1)
+        private val timeline = ArrayList<PerformancePoint>()
+        private val gaps = LinkedHashMap<Long, Set<PerformanceMetric>>()
+        private val missing = mutableSetOf<PerformanceMetric>()
+        private var last: PerformancePoint? = null
+        private var index = 0
+        fun add(point: PerformancePoint) {
+            PerformanceMetric.entries.forEach { metric ->
+                val reading = point.readings[metric]
+                if (reading?.value?.let { reading.available && metric.accepts(it) } != true) missing.add(metric)
             }
+            point.readings.forEach { (metric, reading) ->
+                val value = reading.value?.takeIf { reading.available && metric.accepts(it) }
+                if (value != null) {
+                    val i = metric.ordinal
+                    count[i]++; sum[i] += value
+                    min[i] = minOf(min[i], value); max[i] = maxOf(max[i], value)
+                }
+            }
+            if (index % stride == 0) {
+                timeline.add(point)
+                if (missing.isNotEmpty()) gaps[point.elapsedMillis] = missing.toSet()
+                missing.clear()
+            }
+            last = point
+            index++
+        }
+        fun build(): PerformanceReview {
             if (last != null && timeline.lastOrNull() != last) {
                 timeline.add(last!!)
                 if (missing.isNotEmpty()) gaps[last!!.elapsedMillis] = missing.toSet()
@@ -131,7 +145,7 @@ data class PerformanceReview(
                 val i = it.ordinal
                 PerformanceStats(count[i], if (count[i] == 0) null else sum[i] / count[i],
                     min[i].takeIf { count[i] > 0 }, max[i].takeIf { count[i] > 0 })
-            }, timeline, last?.readings.orEmpty(), gaps)
+            }, timeline.toList(), last?.readings.orEmpty(), gaps.toMap())
         }
     }
 }

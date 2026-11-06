@@ -49,6 +49,7 @@ import org.libremonitor.core.PerformancePoint
 import org.libremonitor.core.PerformanceSession
 import org.libremonitor.core.MonitorSnapshot
 import org.libremonitor.app.data.PerformanceStore
+import org.libremonitor.app.data.PerformanceWriter
 import java.io.OutputStream
 
 /** Process-owned single sampling engine. No boot receiver or background auto-start. */
@@ -62,6 +63,9 @@ class MonitorRuntime(private val context: Context) {
     private var rootManuallyDisabled = false
     private val history = BatteryHistoryStore(context)
     private val performanceStore = PerformanceStore(context)
+    private var performanceWriter: Pair<Long, PerformanceWriter>? = null
+    private val page = MutableStateFlow(SamplingPlan.Page.OVERVIEW)
+    private val overlayExpanded = MutableStateFlow(true)
     private var performanceStartedElapsed = 0L
     private var performanceGeneration = 0L
     private var reviewJob: Job? = null
@@ -139,10 +143,18 @@ class MonitorRuntime(private val context: Context) {
         }
         scope.launch {
             // Project only demand fields so snapshots/history/error updates never restart the loop.
-            val options = state.map { Triple(it.settings, it.overlayEnabled, it.activePerformance != null) }.distinctUntilChanged()
-            combine(visible, serviceActive, interactive, options) { shown, service, screen, (settings, overlay, performance) ->
-                SamplingPlan.forDemand(shown, service, screen, overlay, settings, performance)
+            val settingsDemand = state.map {
+                // Appearance changes must not cancel reads or discard CPU/network baselines.
+                Triple(it.settings.copy(autoRestoreRoot = false, overlay = it.settings.overlay.copy(
+                    columns = 2, opacityPercent = 85, textSizeSp = 18, edgeSnap = true)),
+                    it.overlayEnabled, it.activePerformance != null)
+            }.distinctUntilChanged()
+            val options = combine(settingsDemand, page, overlayExpanded) { settings, selected, expanded -> Triple(settings, selected, expanded) }
+            combine(visible, serviceActive, interactive, options) { shown, service, screen, (demand, selected, expanded) ->
+                val (settings, overlay, performance) = demand
+                SamplingPlan.forDemand(shown, service, screen, overlay, settings, performance, selected, expanded)
             }.distinctUntilChanged().collectLatest { plan ->
+                mutableState.update { it.copy(samplingActive = plan.needsSnapshot) }
                 if (plan.mode == SamplingPlan.Mode.IDLE) return@collectLatest
                 if (plan.needsSnapshot) sampler.resetRateBaselines()
                 while (currentCoroutineContext().isActive) {
@@ -165,11 +177,10 @@ class MonitorRuntime(private val context: Context) {
                         if (plan.needsSnapshot) {
                             val session = state.value.activePerformance?.takeIf { plan.recordPerformance }
                             val started = performanceStartedElapsed
-                            val overlayOptions = state.value.settings.overlay
-                            val collected = sampler.sample(includeDetails = plan.mode == SamplingPlan.Mode.LIVE,
-                                includePerformanceDetails = plan.recordPerformance ||
-                                    (state.value.overlayEnabled && overlayOptions.needsHardwareDetails),
-                                includeNetwork = state.value.overlayEnabled && overlayOptions.needsNetwork)
+                            val collected = sampler.sample(includeDetails = plan.dashboard,
+                                includePerformanceDetails = plan.hardwareDetails,
+                                includeNetwork = plan.collectNetwork, includeFps = plan.collectFps,
+                                includeRootDiagnostics = !plan.recordPerformance && plan.sampleIntervalMs >= 1_000)
                             val snapshot = collected.copy(fps = collected.fps.validatedFor(rootReader.state.value))
                             // Main-thread publication and disableRoot cannot interleave here.
                             mutableState.update { it.copy(snapshot = snapshot) }
@@ -207,6 +218,9 @@ class MonitorRuntime(private val context: Context) {
 
     private fun isScreenInteractive(): Boolean =
         context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
+
+    fun setPage(value: SamplingPlan.Page) { page.value = value }
+    fun setOverlayExpanded(value: Boolean) { overlayExpanded.value = value }
 
     fun refreshBluetoothPermission() {
         val granted = Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(
@@ -273,6 +287,7 @@ class MonitorRuntime(private val context: Context) {
 
     fun setOverlayEnabled(value: Boolean) {
         if (value) stopRequested = false
+        if (!value) overlayExpanded.value = true
         mutableState.update { it.copy(overlayEnabled = value) }
         reconcileService()
     }
@@ -304,6 +319,12 @@ class MonitorRuntime(private val context: Context) {
                     return@launch
                 }
                 performanceStartedElapsed = started
+                performanceWriter = session.id to PerformanceWriter(scope,
+                    write = { performanceStore.appendBatch(session.id, it) },
+                    onFailure = { error -> scope.launch {
+                        if (state.value.activePerformance?.id == session.id) stopPerformanceRecording(interrupted = true)
+                        reportError("性能记录写入失败：${error.javaClass.simpleName}；已停止记录，未落盘样本可能丢失，此前已保存样本仍可查看。")
+                    } })
                 mutableState.update { it.copy(activePerformance = session, performanceBusy = false, performanceReview = null) }
                 reconcileService()
                 refreshPerformanceSessions()
@@ -318,11 +339,19 @@ class MonitorRuntime(private val context: Context) {
     fun stopPerformanceRecording(interrupted: Boolean = false) {
         performanceGeneration++
         val session = state.value.activePerformance
+        val writer = performanceWriter?.takeIf { it.first == session?.id }?.second
+        performanceWriter = null
         val duration = SystemClock.elapsedRealtime() - performanceStartedElapsed
         mutableState.update { it.copy(activePerformance = null, performanceBusy = false) }
         if (session != null) scope.launch {
             try {
-                performanceStore.finish(session.id, System.currentTimeMillis(), duration, interrupted)
+                var writeFailed = false
+                try { withContext(NonCancellable) { writer?.closeAndFlush() } }
+                catch (e: Exception) {
+                    writeFailed = true
+                    reportError("部分性能样本未能保存：${e.javaClass.simpleName}；此前已提交的样本仍可查看。")
+                }
+                performanceStore.finish(session.id, System.currentTimeMillis(), duration, interrupted || writeFailed)
                 refreshPerformanceSessions()
                 if (visible.value) reviewPerformance(session.id)
             } catch (e: CancellationException) { throw e }
@@ -347,14 +376,15 @@ class MonitorRuntime(private val context: Context) {
     }
 
     private suspend fun savePerformancePoint(session: PerformanceSession, started: Long, snapshot: MonitorSnapshot) {
+        val writer = performanceWriter?.takeIf { it.first == session.id }?.second ?: return
         try {
             withContext(NonCancellable) {
-                val saved = performanceStore.append(session.id, PerformancePoint.from(snapshot, started))
+                writer.append(PerformancePoint.from(snapshot, started))
                 if (state.value.activePerformance?.id == session.id) {
-                    if (saved) mutableState.update { it.copy(activePerformance = it.activePerformance?.copy(
+                    mutableState.update { it.copy(activePerformance = it.activePerformance?.copy(
                         sampleCount = it.activePerformance.sampleCount + 1,
                         durationMillis = snapshot.elapsedRealtimeMillis - started)) }
-                    else {
+                    if ((state.value.activePerformance?.sampleCount ?: 0) >= PerformanceStore.MAX_POINTS) {
                         stopPerformanceRecording()
                         reportError("本场记录已达到 ${PerformanceStore.MAX_POINTS} 个样本，已自动结束并保存。")
                     }
@@ -362,7 +392,7 @@ class MonitorRuntime(private val context: Context) {
             }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
-            stopPerformanceRecording(interrupted = true)
+            if (state.value.activePerformance?.id == session.id) stopPerformanceRecording(interrupted = true)
             reportError("性能记录写入失败，已停止记录：${e.javaClass.simpleName}；可查看此前已保存的样本。")
         }
     }

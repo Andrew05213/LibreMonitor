@@ -28,14 +28,16 @@ internal data class PrivilegedSample(
 internal suspend fun readPrivilegedSample(
     reader: RootSession,
     includeDetails: Boolean,
+    includeFps: Boolean = true,
+    includeNetwork: Boolean = false,
     elapsedMillis: () -> Long,
 ): PrivilegedSample {
-    val fps = try { reader.readFps() } catch (cancelled: CancellationException) {
+    val fps = if (!includeFps) FpsSample() else try { reader.readFps() } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) { null } ?: FpsSample()
     val fpsReadElapsed = elapsedMillis()
     val frame = try {
-        if (includeDetails) reader.readFrame() else reader.readOverlayFrame()
+        reader.readSamplingFrame(includeDetails, includeNetwork)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) { null }

@@ -12,6 +12,28 @@ import org.libremonitor.core.*
 /** Requires an Android device/emulator; uses its own disposable database. */
 @RunWith(AndroidJUnit4::class)
 class PerformanceStoreTest {
+    @Test fun batchedPointsAndReviewRemainConsistentAcrossStop() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "performance-batch-${System.nanoTime()}.db"
+        val store = PerformanceStore(context, name)
+        try {
+            store.initialize()
+            val session = store.start("batch", 1_000, 100)
+            repeat(30) { batch ->
+                assertTrue(store.appendBatch(session.id, (1..10).map { index ->
+                    val number = batch * 10 + index
+                    PerformancePoint(number * 100L, 1_000 + number * 100L,
+                        mapOf(PerformanceMetric.CPU to Reading(number / 3.0, "synthetic")))
+                }))
+            }
+            store.finish(session.id, 31_000, 30_000)
+            val review = store.review(session.id)
+            assertEquals(300, review.session.sampleCount)
+            assertEquals(300, review.stats[PerformanceMetric.CPU]!!.validCount)
+            assertEquals(30_000L, review.timeline.last().elapsedMillis)
+            assertFalse(store.appendBatch(session.id, listOf(PerformancePoint(31_000, 32_000, emptyMap()))))
+        } finally { store.close(); context.deleteDatabase(name) }
+    }
     @Test fun finishedAndInterruptedSessionsSurviveReopeningAndRejectPostStopWrites() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "performance-test-${System.nanoTime()}.db"

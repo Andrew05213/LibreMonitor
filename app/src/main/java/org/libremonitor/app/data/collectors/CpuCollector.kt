@@ -17,6 +17,7 @@ internal class CpuCollector {
     private var previousRootIdentity: String? = null
     var rootIdentity: String = "disabled"
     private val coreCount = boundedProcessorCount()
+    private val thermalDiscovery = AdvancedCpuCollector.Discovery()
 
     fun resetBaseline() {
         previous = emptyMap()
@@ -67,7 +68,7 @@ internal class CpuCollector {
             .filter { it in 0..255 }.distinct().sorted().toList()
         if (!includeDetails) return CpuSample(usage("cpu"), emptyList(), emptyList(),
             unsupported("CPU 温度", "悬浮窗模式不采集温度和核心详情"))
-        val thermal = isolate({ AdvancedCpuCollector.sample(frame) }, {
+        val thermal = isolate({ AdvancedCpuCollector.sample(frame, thermalDiscovery, elapsedMillis, rootIdentity) }, {
             AdvancedCpuCollector.Result(unsupported("CPU 温度", "传感器读取失败"), emptyList())
         })
         return CpuSample(

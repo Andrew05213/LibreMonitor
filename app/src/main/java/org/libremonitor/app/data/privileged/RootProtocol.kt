@@ -24,6 +24,9 @@ internal object RootProtocol {
     )
     // Prefer the direct percentage before gpubusy: some KGSL reads clear stats while powered off.
     private val gpuFields = listOf("gpuclk", "gpu_busy_percentage", "gpubusy")
+    private val thermalZonePattern = Regex("/sys/class/thermal/thermal_zone([0-9]+)/(type|temp)")
+    private val compactFrameNodes by lazy { buildCompactNodes() }
+    private val allowedFrameNodes by lazy { (nodes() + compactNodes()).toSet() }
 
     data class Node(val key: String, val limit: Int, val command: String)
 
@@ -48,7 +51,9 @@ internal object RootProtocol {
 
     /** Base64 confines node bytes to data, never shell syntax or framing. */
     /** Smaller frame for the one-shot Root path: fewer forks and no slow dumpsys. */
-    fun compactNodes(): List<Node> {
+    fun compactNodes(): List<Node> = compactFrameNodes
+
+    private fun buildCompactNodes(): List<Node> {
         val result = ArrayList<Node>()
         fun file(path: String, limit: Int) { result.add(Node(path, limit, "head -c ${limit + 1} '$path'")) }
         file("/proc/stat", PROC_LIMIT)
@@ -70,6 +75,22 @@ internal object RootProtocol {
         it.key == "/proc/stat" || it.key.startsWith("/sys/class/kgsl/")
     }
 
+    /** Select only existing constant nodes. No caller path or shell fragment enters a command. */
+    fun samplingNodes(details: Boolean, network: Boolean, metadata: Boolean, zones: Set<Int>): List<Node> {
+        require(zones.all { it in 0 until 32 })
+        return compactNodes().filter { node ->
+            val zone = thermalZonePattern.matchEntire(node.key)
+            when {
+                node.key == "/proc/stat" || node.key.startsWith("/sys/class/kgsl/") -> true
+                node.key == "/proc/net/dev" -> network
+                !details -> false
+                node.key.startsWith("/sys/devices/system/cpu/") -> true
+                zone != null -> metadata || (zone.groupValues[1].toInt() in zones && zone.groupValues[2] == "temp")
+                else -> metadata
+            }
+        }
+    }
+
     fun diagnosticNodes(): List<Node> {
         val dollar = '$'
         // Only three derived fields can leave the filter. Never emit SSIDs, keys or MACs.
@@ -79,7 +100,7 @@ internal object RootProtocol {
 
     fun frameScript(id: String, nodes: List<Node>): String {
         require(id.matches(Regex("[a-f0-9]{32}")))
-        require(nodes == overlayNodes() || nodes == compactNodes() || nodes == diagnosticNodes() || nodes == nodes())
+        require(nodes == diagnosticNodes() || (nodes.isNotEmpty() && nodes.distinct() == nodes && nodes.all { it in allowedFrameNodes }))
         val script = StringBuilder()
         // The shell must consume the whole compound command before it can emit stdout;
         // otherwise writing a large script and then reading can deadlock on small pipes.

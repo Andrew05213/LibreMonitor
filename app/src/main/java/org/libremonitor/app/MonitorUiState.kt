@@ -16,6 +16,7 @@ data class MonitorUiState(
     val settings: MonitorSettings = MonitorSettings(),
     val overlayEnabled: Boolean = false,
     val serviceRunning: Boolean = false,
+    val samplingActive: Boolean = false,
     val error: String? = null,
     val rootState: RootState = RootState(),
     val permissionGrantRunning: Boolean = false,
@@ -51,4 +52,5 @@ data class MonitorActions(
     val onEarbudScan: () -> Unit = {},
     val onEarbudScanStop: () -> Unit = {},
     val onPhonePermissionRequest: () -> Unit = {},
+    val onPageChange: (org.libremonitor.core.SamplingPlan.Page) -> Unit = {},
 )

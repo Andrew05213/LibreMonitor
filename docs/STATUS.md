@@ -2,6 +2,12 @@
 
 Updated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
 
+## Unreleased sampling optimization
+
+Page/expanded-overlay demand, bounded metadata discovery, reduced steady Root profiles, batched performance writes and chunked review are implemented. See [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md). Phone throughput and battery cost have not been measured; the 100ms interval remains a target. FPS reliability work is separate.
+
+Local offline validation passed **112 core + 88 app JVM tests (200 total)**, APK packaging, Lint (**0 errors, 1 existing HardwareIds warning**) and Android instrumentation-test compilation. Instrumentation tests were not executed. The APK retains the previous release's debug signing certificate. See [validation-report-sampling-optimization.json](validation-report-sampling-optimization.json).
+
 ## Current build
 
 - Version `0.6.0-dev`, versionCode `16`, application ID `org.libremonitor.app`.

@@ -43,6 +43,10 @@ class OneShotRootReader internal constructor(
     private val random = SecureRandom()
     private val fpsTracker = FpsTracker()
     private val fpsLifecycle = Any()
+    private var metadataAt = Long.MIN_VALUE
+    private var metadataSession = -1L
+    private var metadata = emptyMap<String, org.libremonitor.core.Reading<String>>()
+    private var thermalZones = emptySet<Int>()
 
     override suspend fun requestAuthorization(): Boolean = operation.withLock {
         mutableState.value = RootState(RootAccess.REQUESTING, "Waiting for user authorization", mutableState.value.sessionId)
@@ -71,6 +75,26 @@ class OneShotRootReader internal constructor(
     override suspend fun readFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.compactNodes())
 
     override suspend fun readOverlayFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.overlayNodes())
+    override suspend fun readSamplingFrame(details: Boolean, network: Boolean): PrivilegedNodeFrame? {
+        val session = state.value.sessionId
+        val now = SystemClock.elapsedRealtime()
+        val discover = details && (metadataSession != session || now - metadataAt !in 0..29_999)
+        val nodes = RootProtocol.samplingNodes(details, network, discover, thermalZones)
+        val frame = readFrame(nodes) ?: return null
+        if (discover) {
+            thermalZones = (0 until 32).filter { frame.readings["/sys/class/thermal/thermal_zone$it/type"]?.available == true }.toSet()
+            metadata = frame.readings.filterKeys { it.startsWith("/sys/class/power_supply/") || it.endsWith("/type") }
+            metadataAt = frame.sampledElapsedRealtimeMs
+            metadataSession = session
+        }
+        // Capacities, cycles and sensor labels are explicitly annotated slow metadata.
+        // Never merge cached temperatures, frequencies, current, voltage or GPU readings.
+        val slow = if (details && metadataSession == frame.sessionId && frame.sampledElapsedRealtimeMs - metadataAt in 0..29_999)
+            metadata.filterKeys { !it.endsWith("/current_now") && !it.endsWith("/voltage_now") && !it.endsWith("/status") }
+                .mapValues { (_, reading) -> reading.copy(reason = listOfNotNull(reading.reason, "静态字段缓存，最长 30 秒").joinToString("；")) }
+            else emptyMap()
+        return frame.copy(readings = slow + frame.readings)
+    }
     override suspend fun readDiagnosticsFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.diagnosticNodes(), minOf(readTimeoutMs, 3_000L))
 
     private suspend fun readFrame(nodes: List<RootProtocol.Node>, timeoutMs: Long = readTimeoutMs): PrivilegedNodeFrame? {

@@ -33,7 +33,7 @@ class MonitorService : Service() {
     private val runtime get() = (application as MonitorApplication).runtime
     private val windows by lazy { getSystemService(Context.WINDOW_SERVICE) as WindowManager }
     private val panel by lazy { FloatingPanel(this, windows, ::openMainActivity,
-        { runtime.setOverlayEnabled(false) }, runtime::reportError) }
+        { runtime.setOverlayEnabled(false) }, runtime::reportError, runtime::setOverlayExpanded) }
     private var recordingNotification = false
     private var foregroundReady = false
 

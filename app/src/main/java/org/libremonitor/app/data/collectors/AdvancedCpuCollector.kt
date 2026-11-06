@@ -46,16 +46,40 @@ internal object AdvancedCpuCollector {
 
     fun sample(frame: PrivilegedNodeFrame?): Result = sample(frame, ::readBounded)
 
-    internal fun sample(frame: PrivilegedNodeFrame?, read: (String, Int) -> Reading<String>): Result {
+    /** Cache discovery only; every temperature still comes from this sampling cycle. */
+    internal class Discovery {
+        private var sampledAt: Long? = null
+        private var identity: String? = null
+        private var types = emptyMap<Int, String>()
+        fun types(frame: PrivilegedNodeFrame?, now: Long, rootIdentity: String,
+            read: (String, Int) -> Reading<String>): Map<Int, String> {
+            val at = sampledAt
+            if (identity == rootIdentity && at != null && now - at in 0..29_999) return types
+            types = (0..95).mapNotNull { index ->
+                val path = "/sys/class/thermal/thermal_zone$index/type"
+                val type = frame?.readings?.get(path)?.takeIf { it.available } ?: read(path, 128)
+                type.value?.trim()?.takeIf { it.isNotEmpty() }?.let { index to it }
+            }.toMap()
+            sampledAt = now; identity = rootIdentity
+            return types
+        }
+    }
+
+    fun sample(frame: PrivilegedNodeFrame?, discovery: Discovery, now: Long, identity: String): Result =
+        sample(frame, ::readBounded, discovery.types(frame, now, identity, ::readBounded))
+
+    internal fun sample(frame: PrivilegedNodeFrame?, read: (String, Int) -> Reading<String>): Result = sample(frame, read, null)
+
+    internal fun sample(frame: PrivilegedNodeFrame?, read: (String, Int) -> Reading<String>, types: Map<Int, String>?): Result {
         val hal = frame?.readings?.get("thermalservice")?.value?.let(::parseHal)
-        val sysfs = (0..95).mapNotNull { index ->
+        val sysfs = (types?.keys ?: (0..95).toSet()).mapNotNull { index ->
             val base = "/sys/class/thermal/thermal_zone$index"
             fun node(suffix: String): Reading<String> {
                 val path = "$base/$suffix"
                 val root = frame?.readings?.get(path)
                 return if (root?.available == true) root else read(path, 128)
             }
-            val type = node("type").value?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val type = types?.get(index) ?: node("type").value?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             val kind = when {
                 SensorMath.isCpuSensorType(type) -> SensorKind.CPU
                 type.contains("gpu", ignoreCase = true) -> SensorKind.GPU

@@ -11,6 +11,13 @@ import org.libremonitor.app.data.privileged.RootSession
 import org.libremonitor.core.*
 
 class PrivilegedSamplingTest {
+    @Test fun unselectedFpsNeverLaunchesACompositorQuery() = runBlocking {
+        val reader = FakeReader()
+        val result = readPrivilegedSample(reader, false, includeFps = false) { reader.now }
+        assertEquals(listOf("overlay"), reader.calls)
+        assertNotNull(result.frame)
+        assertFalse(result.fps.fps.available)
+    }
     private class FakeReader : RootSession {
         var now = 1_000L
         var fpsCost = 2_200L
