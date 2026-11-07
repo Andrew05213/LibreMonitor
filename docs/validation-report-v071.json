@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-07",
+  "branch": "perf/root-frame-batching",
+  "base_commit": "99eb3d4",
+  "version": "0.7.1-dev",
+  "version_code": 18,
+  "checks": {
+    "core": {
+      "tests": 116,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 119,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "apk_build": "passed",
+  "lint": [
+    {
+      "id": "HardwareIds",
+      "severity": "Warning"
+    }
+  ],
+  "android_test_compilation": "passed",
+  "android_test_execution": "not run",
+  "command": "bash scripts/build-local.sh --offline '-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8' :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
+  "apk": {
+    "sha256": "af75bbcd7d7e49fda111e463e2fb2e478dbf7073e59efd8610a02f08f57979d2",
+    "bytes": 16200029,
+    "signer_sha256": "d93b7a4631ad81c1319c92165e3eeedac7561da12c9c4f05dfabc5567e416e73",
+    "same_signer_as_v060_release": true
+  },
+  "evidence": [
+    "Generated bounded shell packet round-trips through host sh and real Base64/tr",
+    "Strict UID/nonce/index/count/NUL/end markers, frame budget, per-node truncation and UTF-8 handling",
+    "Changed commands, arbitrary paths and duplicate nodes rejected",
+    "Steady Root frame includes only discovered CPU temperature plus live electrical/frequency/GPU nodes",
+    "Frame telemetry reports actual queried node count rather than merged metadata",
+    "FPS completed during slow nodes is consumed at publication; reused flags and acquisition time preserved",
+    "Earlier FPS/node concurrency, session cancellation and data-correctness tests still pass"
+  ],
+  "diagnostic_findings": {
+    "source_app_version": "0.6.0-dev",
+    "selected_session_samples": 65,
+    "selected_session_valid_fps": 2,
+    "selected_session_expired_after_node_read": 57,
+    "recent_recording_root_median_ms": 3044,
+    "recent_recording_fps_median_ms": 915,
+    "all_batch_write_mean_ms": 10.092307692307692,
+    "raw_battery_electrical_diagnostics_present": false
+  },
+  "limits": [
+    "User diagnostic file is historical 0.6.0 evidence, not a measurement of 0.7.x.",
+    "No phone throughput benchmark, power calibration, UI run or Android instrumentation execution.",
+    "100ms is still a target; fixed command and driver costs can exceed it.",
+    "No new privileged paths, permissions, database/CSV formats, shell input API or dependency.",
+    "Original user JSON, surface names and package targets are not committed or uploaded."
+  ]
+}

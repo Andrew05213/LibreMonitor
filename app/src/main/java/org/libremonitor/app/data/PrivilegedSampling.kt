@@ -18,15 +18,19 @@ internal suspend fun readScheduledPrivilegedSample(reader: RootSession, details:
     val nonblocking = includeFps && intervalMillis <= 1_000L
     val polled = if (nonblocking && reader.state.value.access == RootAccess.GRANTED) poller.poll(intervalMillis) else null
     val captured = readPrivilegedSample(reader, details, includeFps && !nonblocking, network, clock)
+    // A compositor query may have completed while node I/O was running. Consume that
+    // result now, keeping the earlier fresh result if this second poll only reuses it.
+    val after = if (nonblocking && reader.state.value.access == RootAccess.GRANTED) poller.poll(intervalMillis) else null
+    val selected = after?.takeIf { it.sample.hasNewReading } ?: polled
     val sample = when {
         !includeFps -> FpsSample(hasNewReading = false)
-        nonblocking -> polled?.sample ?: FpsSample(hasNewReading = false)
+        nonblocking -> selected?.sample ?: FpsSample(hasNewReading = false)
         else -> captured.fps.copy(sampledElapsedRealtimeMillis = captured.fpsReadElapsedMillis)
     }
-    val attempt = if (nonblocking) polled?.attempt?.takeIf { sample.hasNewReading }
+    val attempt = if (nonblocking) selected?.attempt?.takeIf { sample.hasNewReading }
         else (reader as? org.libremonitor.app.data.privileged.OneShotRootReader)?.fpsDiagnosticSnapshot()?.takeIf { includeFps }
     return ScheduledPrivilegedSample(captured.copy(fps = sample,
-        fpsReadElapsedMillis = polled?.completedAt ?: captured.fpsReadElapsedMillis), attempt)
+        fpsReadElapsedMillis = selected?.completedAt ?: captured.fpsReadElapsedMillis), attempt)
 }
 
 internal data class PrivilegedSample(

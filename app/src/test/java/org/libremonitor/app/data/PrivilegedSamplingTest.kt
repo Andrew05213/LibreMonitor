@@ -4,6 +4,12 @@ package org.libremonitor.app.data
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Test
 import org.libremonitor.app.data.collectors.GpuCollector
@@ -40,11 +46,50 @@ class PrivilegedSamplingTest {
         assertNotNull(result.frame)
         assertFalse(result.fps.fps.available)
     }
+
+    @Test fun resultCompletedDuringSlowNodesIsConsumedBeforePublishing() = runBlocking {
+        val reader = FakeReader().apply { frameCost = 3_000 }
+        val release = CompletableDeferred<Unit>()
+        val scope = CoroutineScope(Job())
+        val poller = FpsPoller(scope, { reader.now }) {
+            release.await()
+            FpsPoller.Result(FpsSample(fps = Reading(90.0, "fixture"), rootSessionId = 1))
+        }
+        try {
+            reader.onFrame = { release.complete(Unit); withTimeout(2_000) { scope.coroutineContext[Job]!!.children.toList().joinAll() } }
+            val result = readScheduledPrivilegedSample(reader, true, false, true, 100, poller) { reader.now }
+            assertEquals(90.0, result.privileged.fpsAt(reader.state.value, reader.now).fps.value!!, 0.0)
+            assertTrue(result.privileged.fps.hasNewReading)
+            assertEquals(reader.now, result.privileged.fpsReadElapsedMillis)
+        } finally { poller.reset(); scope.cancel() }
+    }
+
+    @Test fun secondPollDoesNotTurnAnAlreadyConsumedFreshResultIntoAReusedMeasurement() = runBlocking {
+        val reader = FakeReader()
+        val scope = CoroutineScope(Job())
+        val release = CompletableDeferred<Unit>()
+        val queries = java.util.concurrent.atomic.AtomicInteger()
+        val poller = FpsPoller(scope, { reader.now }) {
+            if (queries.incrementAndGet() > 1) release.await()
+            FpsPoller.Result(FpsSample(fps = Reading(60.0, "fixture"), rootSessionId = 1))
+        }
+        try {
+            poller.poll(100)
+            withTimeout(2_000) { scope.coroutineContext[Job]!!.children.toList().joinAll() }
+            val fresh = readScheduledPrivilegedSample(reader, true, false, true, 100, poller) { reader.now }
+            assertTrue(fresh.privileged.fps.hasNewReading)
+            assertEquals(1_000L, fresh.privileged.fpsReadElapsedMillis)
+            val reused = readScheduledPrivilegedSample(reader, true, false, true, 100, poller) { reader.now }
+            assertFalse(reused.privileged.fps.hasNewReading)
+            assertEquals(1_000L, reused.privileged.fpsReadElapsedMillis)
+        } finally { poller.reset(); scope.cancel() }
+    }
     private class FakeReader : RootSession {
         var now = 1_000L
         var fpsCost = 2_200L
         var frameCost = 20L
         var fpsFailure: Exception? = null
+        var onFrame: suspend () -> Unit = {}
         val calls = mutableListOf<String>()
         override val state = MutableStateFlow(RootState(RootAccess.GRANTED, "synthetic", 1))
         override suspend fun requestAuthorization() = true
@@ -59,6 +104,7 @@ class PrivilegedSamplingTest {
         override suspend fun readFrame(): PrivilegedNodeFrame {
             calls.add("frame")
             now += frameCost
+            onFrame()
             return PrivilegedNodeFrame(mapOf(
                 "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage" to Reading("35 %", "synthetic Root"),
                 "/sys/class/kgsl/kgsl-3d0/gpuclk" to Reading("500000000", "synthetic Root")), now, 1)

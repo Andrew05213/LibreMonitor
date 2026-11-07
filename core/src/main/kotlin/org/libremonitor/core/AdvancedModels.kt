@@ -14,6 +14,9 @@ data class PrivilegedNodeFrame(
     val readings: Map<String, Reading<String>>,
     val sampledElapsedRealtimeMs: Long,
     val sessionId: Long,
+    /** Actual command profile, excluding subsequently merged cached metadata. */
+    val queriedNodeCount: Int = readings.size,
+    val transport: String = "legacy",
 )
 
 /** Result of fixed, app-scoped root permission commands. */

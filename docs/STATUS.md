@@ -1,6 +1,12 @@
-# Current validation status — 0.7.0-dev
+# Current validation status — 0.7.1-dev
 
 Updated 2026-11-07 for unreleased branch work. Released 0.6.0 build evidence remains dated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
+
+## 0.7.1-dev branch work
+
+Batched bounded Root transport, CPU-only steady thermal profiles, consumption of FPS completed during node I/O, and actual Root node-count/transport diagnostics are implemented on `perf/root-frame-batching`. See [ROOT_FRAME_BATCHING.md](ROOT_FRAME_BATCHING.md). The supplied historical **0.6.0** phone export establishes costly subsequent Root reads and expired game timestamps; it does not measure this new build or establish the battery unit mapping.
+
+Local offline validation passed **116 core + 119 app JVM tests (235 total)**, APK packaging, Lint (**0 errors, 1 existing HardwareIds warning**) and Android instrumentation-test compilation. Instrumentation tests were not executed. The 0.7.1-dev APK has versionCode 18 and the prior release's debug signing certificate. Actual 100ms throughput and power accuracy remain unverified on the phone. See [validation-report-v071.json](validation-report-v071.json).
 
 ## 0.7.0-dev branch work
 

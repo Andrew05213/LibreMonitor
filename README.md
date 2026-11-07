@@ -4,7 +4,9 @@
 
 An independent, offline-first Android system monitor. Apache-2.0.
 
-Current development version: **0.7.0-dev** (versionCode 17). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
+Current development version: **0.7.1-dev** (versionCode 18). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
+
+See [0.7.1 Root transport notes](docs/ROOT_FRAME_BATCHING.md) for diagnostic findings and batched node reads.
 
 ## Current prototype
 

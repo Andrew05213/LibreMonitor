@@ -2,16 +2,19 @@
 
 ## Current
 
+- [ROOT_FRAME_BATCHING.md](ROOT_FRAME_BATCHING.md): 0.7.1-dev diagnostic findings, bounded batched Root transport and FPS consumption after node I/O.
+- [validation-report-v071.json](validation-report-v071.json): 0.7.1-dev local validation and device limits.
+
 - [POWER_AND_NATIVE_UI.md](POWER_AND_NATIVE_UI.md): 0.7.0-dev power-unit provenance, native three-tab UI, continuous overlay controls and nonblocking FPS.
 - [validation-report-v070.json](validation-report-v070.json): 227 JVM tests, APK/lint/signing verification and explicit device-validation limits.
 
 | Document | Purpose |
 |---|---|
 | [README](../README.md) / [中文 README](../README.zh-CN.md) | Project summary, current features, build and privacy boundaries. |
-| [STATUS.md](STATUS.md) | Current 0.6.0 validation, prior device smoke results and open limitations. |
+| [STATUS.md](STATUS.md) | Current development validation, prior device smoke results and open limitations. |
 | [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) | Unreleased demand-based sampling, metadata discovery, bounded batched writes and nonblocking review. |
 | [validation-report-sampling-optimization.json](validation-report-sampling-optimization.json) | Optimization test/build/lint results and explicit device-validation limits. |
-| [CHANGELOG.md](CHANGELOG.md) | Development history from 0.1.0 to 0.6.0. |
+| [CHANGELOG.md](CHANGELOG.md) | Development history. |
 | [DEVICE_EXTENSIONS.md](DEVICE_EXTENSIONS.md) | Edge/custom overlay, SoC catalog/core tiers, Bluetooth/PAN/battery and system/mobile/hotspot support limits. |
 | [validation-report-v060.json](validation-report-v060.json) | 0.6.0 test/build/lint results, APK checksum/signing continuity and explicit phone-validation limits. |
 | [FPS.md](FPS.md) | Read-only FPS compatibility fix, test evidence, measurement limits and pending device checks. |

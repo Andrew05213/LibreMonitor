@@ -88,7 +88,10 @@ class OneShotRootReader internal constructor(
         val nodes = RootProtocol.samplingNodes(details, network, discover, thermalZones)
         val frame = readFrame(nodes) ?: return null
         if (discover) {
-            thermalZones = (0 until 32).filter { frame.readings["/sys/class/thermal/thermal_zone$it/type"]?.available == true }.toSet()
+            thermalZones = (0 until 32).filter {
+                val type = frame.readings["/sys/class/thermal/thermal_zone$it/type"]
+                type?.available == true && org.libremonitor.core.SensorMath.isCpuSensorType(type.value.orEmpty())
+            }.toSet()
             metadata = frame.readings.filterKeys { it.startsWith("/sys/class/power_supply/") || it.endsWith("/type") }
             metadataAt = frame.sampledElapsedRealtimeMs
             metadataSession = session
@@ -111,13 +114,13 @@ class OneShotRootReader internal constructor(
             val id = randomId()
             val started = elapsedMillis()
             val output = runInterruptible(Dispatchers.IO) {
-                run(RootProtocol.frameScript(id, nodes), timeoutMs)
+                run(RootProtocol.batchedFrameScript(id, nodes), timeoutMs)
             } ?: return null
             // Root manager banners or prompts must not be parsed as frame data.
-            val begin = "LM:$id:BEGIN"
+            val begin = "LM:$id:BATCH:"
             val clean = output.substring(output.indexOf(begin).coerceAtLeast(0))
             if (!clean.startsWith(begin)) return null
-            val readings = RootProtocol.readFrame(
+            val readings = RootProtocol.readBatchedFrame(
                 ByteArrayInputStream(clean.toByteArray(Charsets.US_ASCII)), id, nodes,
             )
             val ended = elapsedMillis()
@@ -125,7 +128,7 @@ class OneShotRootReader internal constructor(
             synchronized(this) {
                 if (mutableState.value.access != RootAccess.GRANTED ||
                     mutableState.value.sessionId != root.sessionId) null
-                else PrivilegedNodeFrame(readings, ended, root.sessionId)
+                else PrivilegedNodeFrame(readings, ended, root.sessionId, nodes.size, "batched-v1")
             }
         } catch (e: CancellationException) {
             throw e

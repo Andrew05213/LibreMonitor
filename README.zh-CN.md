@@ -2,9 +2,11 @@
 
 独立的离线 Android 系统监控工具，Apache-2.0 许可。
 
-当前开发版本：**0.7.0-dev**（versionCode 17）。支持 Android 8.0+（API26），使用 Kotlin、Jetpack Compose Material3。无账号、无分析 SDK、无联网权限、无开机自启。
+当前开发版本：**0.7.1-dev**（versionCode 18）。支持 Android 8.0+（API26），使用 Kotlin、Jetpack Compose Material3。无账号、无分析 SDK、无联网权限、无开机自启。
 
 [English](README.md) | **简体中文**
+
+0.7.1 根据诊断优化 Root 批量读取，见[诊断与改动](docs/ROOT_FRAME_BATCHING.md)。100ms 仍为目标，实际间隔以手机显示为准。
 
 ## 当前功能
 

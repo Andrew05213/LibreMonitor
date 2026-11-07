@@ -2,6 +2,13 @@
 
 Dates are development dates; this is not a published release history.
 
+## 0.7.1-dev — 2026-11-07
+
+- Replaced per-node encoding/subshells in the one-shot Root backend with one bounded, identity/nonce/count-checked batch packet. Fixed allowlists, node limits, cancellation and unavailable-value handling remain in force.
+- Limited steady Root temperature reads to discovered CPU sensor types; retained live electrical/frequency/GPU reads and bounded metadata discovery.
+- Consumed FPS completed during node I/O before publication while preserving original acquisition times and unique-reading flags. Added actual Root command counts and transport names to explicit local diagnostics.
+- Analyzed the supplied 0.6.0 export: game timestamps existed, but slow subsequent hardware reads often expired them. No device speedup, 0.7.x measurement or power calibration is inferred. See [ROOT_FRAME_BATCHING.md](ROOT_FRAME_BATCHING.md).
+
 ## 0.7.0-dev — 2026-11-07
 
 - Replaced four main tabs with native Material3 功能 / 概览 / 设置 navigation, compact function/settings rows and green accents. Moved technical footnotes to detail views and kept missing/interrupted states explicit.

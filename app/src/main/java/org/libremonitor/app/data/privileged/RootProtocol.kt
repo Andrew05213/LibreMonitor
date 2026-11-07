@@ -100,8 +100,7 @@ internal object RootProtocol {
     }
 
     fun frameScript(id: String, nodes: List<Node>): String {
-        require(id.matches(Regex("[a-f0-9]{32}")))
-        require(nodes == diagnosticNodes() || (nodes.isNotEmpty() && nodes.distinct() == nodes && nodes.all { it in allowedFrameNodes }))
+        validateNodes(id, nodes)
         val script = StringBuilder()
         // The shell must consume the whole compound command before it can emit stdout;
         // otherwise writing a large script and then reading can deadlock on small pipes.
@@ -122,6 +121,70 @@ internal object RootProtocol {
         }
         script.append("printf 'LM:$id:END\\n'\n}\n")
         return script.toString()
+    }
+
+    private fun validateNodes(id: String, nodes: List<Node>) {
+        require(id.matches(Regex("[a-f0-9]{32}")))
+        require(nodes == diagnosticNodes() || (nodes.isNotEmpty() && nodes.distinct() == nodes && nodes.all { it in allowedFrameNodes }))
+    }
+
+    /** One bounded head per node; encode the entire NUL-delimited packet once, not each node. */
+    fun batchedFrameScript(id: String, nodes: List<Node>): String {
+        validateNodes(id, nodes)
+        return buildString {
+            append("{\nPATH=/system/bin; export PATH\n")
+            append("printf 'LM:$id:BATCH:'\n{\nprintf 'LM:$id:UID:'\n/system/bin/id -u\nprintf '\\000'\n")
+            nodes.forEachIndexed { index, node ->
+                append("printf 'LM:$id:$index:'\n")
+                if (node.key.startsWith("/sys/devices/system/cpu/cpu")) {
+                    val cpuDirectory = node.key.substringBefore("/cpufreq/")
+                    append("if [ -d '$cpuDirectory' ]; then ")
+                    append("{ ").append(node.command).append("; } 2>/dev/null; fi\n")
+                } else {
+                    append("{ ").append(node.command).append("; } 2>/dev/null\n")
+                }
+                append("printf '\\000'\n")
+            }
+            append("printf 'LM:$id:RAWEND\\000'\n} 2>/dev/null | base64 | tr -d '\\n'\n")
+            append("printf '\\nLM:$id:BATCHEND\\n'\n}\n")
+        }
+    }
+
+    /** A missing/extra NUL, item, nonce, identity or end marker invalidates the entire frame. */
+    fun readBatchedFrame(input: InputStream, id: String, nodes: List<Node>): Map<String, Reading<String>> {
+        validateNodes(id, nodes)
+        val budget = Budget(MAX_FRAME)
+        val line = readLine(input, budget)
+        val prefix = "LM:$id:BATCH:"
+        if (!line.startsWith(prefix)) throw ProtocolException("missing batch start marker")
+        val encoded = line.substring(prefix.length)
+        if (encoded.length % 4 != 0) throw ProtocolException("invalid batch encoding")
+        val bytes = try { Base64.getDecoder().decode(encoded) }
+            catch (_: IllegalArgumentException) { throw ProtocolException("invalid batch encoding") }
+        if (readLine(input, budget) != "LM:$id:BATCHEND" || input.read() != -1)
+            throw ProtocolException("missing batch end marker or trailing data")
+        var offset = 0
+        fun record(): ByteArray {
+            val start = offset
+            while (offset < bytes.size && bytes[offset] != 0.toByte()) offset++
+            if (offset == bytes.size) throw ProtocolException("missing record delimiter")
+            return bytes.copyOfRange(start, offset++)
+        }
+        if (!record().contentEquals("LM:$id:UID:0\n".toByteArray(Charsets.US_ASCII)))
+            throw ProtocolException("invalid batch identity")
+        val readings = LinkedHashMap<String, Reading<String>>()
+        nodes.forEachIndexed { index, node ->
+            val item = record()
+            val marker = "LM:$id:$index:".toByteArray(Charsets.US_ASCII)
+            if (item.size < marker.size || !item.copyOfRange(0, marker.size).contentEquals(marker))
+                throw ProtocolException("invalid batch item marker")
+            val value = item.copyOfRange(marker.size, item.size)
+            if (value.size > node.limit + 1) throw ProtocolException("invalid batch item length")
+            readings[node.key] = nodeReading(node, value)
+        }
+        if (!record().contentEquals("LM:$id:RAWEND".toByteArray(Charsets.US_ASCII)) || offset != bytes.size)
+            throw ProtocolException("invalid batch record count or end marker")
+        return readings
     }
 
     fun probeScript(id: String): String {
@@ -195,7 +258,13 @@ internal object RootProtocol {
             val bytes = try { Base64.getDecoder().decode(encoded) }
                 catch (_: IllegalArgumentException) { throw ProtocolException("invalid item encoding") }
             if (bytes.size > node.limit + 1) throw ProtocolException("invalid item length")
-            readings[node.key] = when {
+            readings[node.key] = nodeReading(node, bytes)
+        }
+        if (readLine(input, budget) != "LM:$id:END") throw ProtocolException("missing end marker")
+        return readings
+    }
+
+    private fun nodeReading(node: Node, bytes: ByteArray): Reading<String> = when {
                 bytes.size > node.limit -> Reading.unavailable(node.key, "Source output truncated", ReadingStatus.ERROR)
                 bytes.isEmpty() -> Reading.unavailable(node.key, "Missing, denied or empty")
                 else -> {
@@ -207,10 +276,6 @@ internal object RootProtocol {
                         Reading.unavailable(node.key, "Invalid or empty source", ReadingStatus.ERROR)
                     } else Reading(text, node.key)
                 }
-            }
-        }
-        if (readLine(input, budget) != "LM:$id:END") throw ProtocolException("missing end marker")
-        return readings
     }
 }
 

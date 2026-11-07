@@ -4,7 +4,7 @@ This is an independent Android monitoring app. Do not copy OpenMonitor code, bra
 
 ## Current scope
 
-- Current development version is `0.7.0-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
+- Current development version is `0.7.1-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
 - The UI is an icon-led dashboard. Primary cards show label, value and unit; provenance and failure explanations belong in details.
 - Bluetooth uses public APIs only. Do not fake core version, per-device RSSI or battery; permission-denied and unavailable states must remain explicit.
 - Earbud BLE scans are explicit, foreground-only, bounded to 30s and expire readings after 60s. Do not associate rotating addresses by name, or persist raw advertisements. Bluetooth PAN counters are not headphone audio throughput.

@@ -53,12 +53,13 @@ class OneShotFpsTest {
         val reader = OneShotRootReader(startProcess = { script ->
             when {
                 script.contains("FPSBEGIN") -> Fake(fps(script), CountDownLatch(1)).also { blocked = it; entered.complete(Unit) }
-                script.contains(":BEGIN") -> {
+                script.contains(":BATCH:") -> {
                     val nonce = id(script)
                     val body = RootProtocol.overlayNodes().mapIndexed { index, _ ->
-                        "LM:$nonce:$index:" + Base64.getEncoder().encodeToString("1".toByteArray()) + "\n"
+                        "LM:$nonce:$index:1\u0000"
                     }.joinToString("")
-                    Fake("LM:$nonce:BEGIN\n${body}LM:$nonce:END\n")
+                    val packet = "LM:$nonce:UID:0\n\u0000${body}LM:$nonce:RAWEND\u0000"
+                    Fake("LM:$nonce:BATCH:${Base64.getEncoder().encodeToString(packet.toByteArray())}\nLM:$nonce:BATCHEND\n")
                 }
                 else -> Fake(probe(script))
             }
@@ -81,6 +82,39 @@ class OneShotFpsTest {
         val diagnostic = reader.fpsDiagnosticSnapshot()!!
         assertEquals(121, diagnostic.timestampCounts.single())
         assertEquals(1, diagnostic.capture!!.layers.single().timestamps.size)
+    }
+
+    @Test fun steadyFramesReadOnlyDiscoveredCpuTemperaturesAndReportActualNodeCount() = runBlocking {
+        val profiles = mutableListOf<List<RootProtocol.Node>>()
+        val reader = OneShotRootReader(startProcess = { script ->
+            if (!script.contains(":BATCH:")) Fake(probe(script)) else {
+                val nonce = id(script)
+                val nodes = RootProtocol.compactNodes().filter { script.contains("{ ${it.command}; }") }
+                profiles.add(nodes)
+                val body = nodes.mapIndexed { index, node ->
+                    val value = when (node.key) {
+                        "/sys/class/thermal/thermal_zone1/type" -> "cpu-thermal\n"
+                        "/sys/class/thermal/thermal_zone2/type" -> "gpu-thermal\n"
+                        else -> ""
+                    }
+                    "LM:$nonce:$index:$value\u0000"
+                }.joinToString("")
+                val packet = "LM:$nonce:UID:0\n\u0000${body}LM:$nonce:RAWEND\u0000"
+                Fake("LM:$nonce:BATCH:${Base64.getEncoder().encodeToString(packet.toByteArray())}\nLM:$nonce:BATCHEND\n")
+            }
+        }, elapsedMillis = { 1_000L })
+        assertTrue(reader.requestAuthorization())
+        try {
+            assertNotNull(reader.readSamplingFrame(true, false))
+            val steady = reader.readSamplingFrame(true, false)!!
+            val keys = profiles.last().map { it.key }
+            assertTrue(keys.contains("/sys/class/thermal/thermal_zone1/temp"))
+            assertFalse(keys.contains("/sys/class/thermal/thermal_zone2/temp"))
+            assertEquals(19, steady.queriedNodeCount)
+            assertEquals("batched-v1", steady.transport)
+            assertTrue(steady.readings.size > steady.queriedNodeCount)
+            assertEquals(6, keys.count { it.startsWith("/sys/class/power_supply/") })
+        } finally { reader.close() }
     }
 
     @Test fun acceptsCompleteSlowCandidateExchangeInsteadOfLosingItAtTwoSeconds() = runBlocking {

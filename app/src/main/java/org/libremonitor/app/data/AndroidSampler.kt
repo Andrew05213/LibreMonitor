@@ -113,7 +113,8 @@ class AndroidSampler(context: Context, private val rootReader: RootSession) {
         val frameCompleted = SystemClock.elapsedRealtime()
         val environmentMs = (frameCompleted - sampleBegan - privileged.fpsDurationMillis - privileged.frameDurationMillis).coerceAtLeast(0)
         fun timings() { lastTimings = SamplerTimings(environmentMs, privileged.fpsDurationMillis,
-            privileged.frameDurationMillis, (SystemClock.elapsedRealtime() - frameCompleted).coerceAtLeast(0)) }
+            privileged.frameDurationMillis, (SystemClock.elapsedRealtime() - frameCompleted).coerceAtLeast(0),
+            privileged.frame?.queriedNodeCount, privileged.frame?.transport) }
         val candidate = privileged.frame
         val elapsed = SystemClock.elapsedRealtime()
         val epoch = System.currentTimeMillis()

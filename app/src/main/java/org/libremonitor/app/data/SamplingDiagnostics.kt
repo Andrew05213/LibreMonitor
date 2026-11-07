@@ -5,7 +5,8 @@ import org.libremonitor.app.data.privileged.FpsAttempt
 import org.libremonitor.core.FpsSample
 
 internal data class SamplerTimings(val environmentMs: Long = 0, val fpsMs: Long = 0,
-    val frameMs: Long = 0, val otherCollectorsMs: Long = 0)
+    val frameMs: Long = 0, val otherCollectorsMs: Long = 0,
+    val rootNodeCount: Int? = null, val rootTransport: String? = null)
 internal data class SamplingTrace(val startedElapsedMs: Long, val targetIntervalMs: Long, val cycleMs: Long,
     val mode: String, val fpsRequested: Boolean, val fps: FpsSample, val timings: SamplerTimings, val attempt: FpsAttempt?,
     val enqueueWaitMs: Long = 0, val battery: org.libremonitor.core.BatterySample? = null)

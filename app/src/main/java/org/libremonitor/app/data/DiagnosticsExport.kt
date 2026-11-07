@@ -44,6 +44,7 @@ internal object DiagnosticsExport {
                     .name("target_interval_ms").value(trace.targetIntervalMs).name("cycle_ms").value(trace.cycleMs)
                     .name("environment_ms").value(trace.timings.environmentMs).name("fps_ms").value(trace.timings.fpsMs)
                     .name("root_frame_ms").value(trace.timings.frameMs).name("other_collectors_ms").value(trace.timings.otherCollectorsMs)
+                    .name("root_node_count").value(trace.timings.rootNodeCount).name("root_transport").value(trace.timings.rootTransport)
                     .name("record_enqueue_wait_ms").value(trace.enqueueWaitMs)
                     .name("fps_requested").value(trace.fpsRequested).name("published_fps_available").value(trace.fps.fps.available)
                     .name("published_fps").value(trace.fps.fps.value).name("published_reason").value(trace.fps.fps.reason)
