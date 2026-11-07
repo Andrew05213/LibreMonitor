@@ -344,86 +344,76 @@ private fun OverviewPage(
     onDetail: (MetricDetail) -> Unit,
 ) {
     val snapshot = state.snapshot
-    if (snapshot == null) {
-        HeroPlaceholder("CPU", Icons.Rounded.Speed)
-        MetricGrid(
-            listOf(
-                pendingTile("CPU 温度", Icons.Rounded.Thermostat),
-                pendingTile("电量", Icons.Rounded.BatteryFull),
-                pendingTile("内存", Icons.Rounded.Memory),
-            ),
-            2,
-            onDetail,
-        )
-        return
-    }
-    val stamp = snapshot.timestampEpochMillis
     state.device?.let { device ->
         SectionCard(device.model, Icons.Rounded.Smartphone) {
             InfoRow("芯片", device.cpuIdentity.name.value ?: "—")
             InfoRow("架构", device.abis.joinToString(" / "))
         }
     }
-    CpuHero(snapshot.cpu, stamp, accent, onDetail, state.device?.cpuIdentity)
-    MetricGrid(
-        listOf(
-            tile("CPU 温度", snapshot.cpu.temperatureC, ::temperatureQuantity, validTemperature, stamp, Icons.Rounded.Thermostat),
-            tile("电量", snapshot.battery.levelPercent, ::levelQuantity, validBatteryLevel, stamp, Icons.Rounded.BatteryFull),
-            tile("内存已用", memoryUsedPercent(snapshot.memory), ::percentQuantity, validPercent, stamp, Icons.Rounded.Memory),
-            tile("可用内存", snapshot.memory.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Memory),
-        ),
-        2,
-        onDetail,
-    )
+    if (snapshot == null) { HeroPlaceholder("CPU", Icons.Rounded.Speed); return }
+    val stamp = snapshot.timestampEpochMillis
     val cpu = snapshot.cpu
-    SectionCard("逐核负载", Icons.Rounded.DeveloperBoard) {
-        val count = maxOf(cpu.perCoreUsagePercent.size, cpu.frequenciesMhz.size, cpu.coreIds.size)
-        if (count == 0) {
-            EmptyLine("—", "系统未返回逐核读数")
-        } else CpuCoreGroups(cpu, state.device?.cpuIdentity, stamp, onDetail)
+    val averageFrequency = org.libremonitor.core.PerformancePoint.from(snapshot, 0,
+        setOf(org.libremonitor.core.PerformanceMetric.CPU_FREQUENCY)).readings.getValue(org.libremonitor.core.PerformanceMetric.CPU_FREQUENCY)
+    SectionCard("CPU", Icons.Rounded.DeveloperBoard) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf(
+                tile("负载", cpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Speed),
+                tile("温度", cpu.temperatureC, ::temperatureQuantity, validTemperature, stamp, Icons.Rounded.Thermostat),
+                tile("均频", averageFrequency, ::frequencyQuantity, positiveDouble, stamp, Icons.Rounded.Speed),
+                tile("核心", if (cpu.coreIds.isEmpty()) Reading.unavailable<Int>("/proc/stat", "未取得逻辑核心")
+                    else Reading(cpu.coreIds.size, "/proc/stat 逻辑核心编号"), { Quantity(it.toString(), null) }, { it > 0 }, stamp, Icons.Rounded.DeveloperBoard),
+            ).forEach { item ->
+                Column(Modifier.weight(1f).clickable { onDetail(item.detail) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(item.quantity?.display ?: "—", color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(item.label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        CpuCoreGroups(cpu, state.device?.cpuIdentity, stamp, onDetail)
     }
-    SectionCard("内存 / Swap", Icons.Rounded.Memory) {
-        UsageRow("内存已用", memoryUsedPercent(snapshot.memory), validPercent, stamp, onDetail, Icons.Rounded.Memory)
-        UsageRow("Swap 已用", swapUsedPercent(snapshot.memory), validPercent, stamp, onDetail, Icons.Rounded.Storage)
-        MiniPair(
-            tile("可用内存", snapshot.memory.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Memory),
-            tile("内存总计", snapshot.memory.totalBytes, ::bytesQuantity, { it > 0L }, stamp, Icons.Rounded.Memory),
-            onDetail,
-        )
+    SectionCard("内存", Icons.Rounded.Memory) {
+        val memory = snapshot.memory
+        val used = memoryUsedPercent(memory)
+        val memoryTile = tile("内存占用", used, ::percentQuantity, validPercent, stamp, Icons.Rounded.Memory)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Box(Modifier.clickable { onDetail(memoryTile.detail) }) {
+                Gauge(used.validValue(validPercent)?.div(100), MaterialTheme.colorScheme.primary,
+                    MaterialTheme.colorScheme.outlineVariant, "内存", 100.dp)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val total = memory.totalBytes.validValue { it > 0L }
+                val available = memory.availableBytes.validValue(nonnegativeLong)
+                val physical = if (total != null && available != null && available <= total)
+                    "${bytesQuantity(total - available).display} / ${bytesQuantity(total).display}" else "—"
+                val swapTotal = memory.swapTotalBytes.validValue(nonnegativeLong)
+                val swapFree = memory.swapFreeBytes.validValue(nonnegativeLong)
+                val swap = if (swapTotal != null && swapFree != null && swapFree <= swapTotal)
+                    "${bytesQuantity(swapTotal - swapFree).display} / ${bytesQuantity(swapTotal).display}" else "—"
+                InfoRow("物理内存", physical)
+                InfoRow("可用", available?.let(::bytesQuantity)?.display ?: "—")
+                InfoRow("Swap", swap)
+            }
+        }
     }
-    SectionCard("网络", Icons.Rounded.Wifi) {
-        MiniPair(
-            tile("下载", snapshot.network.downloadBytesPerSecond, ::rateQuantity, nonnegativeDouble, stamp, Icons.Rounded.ArrowDownward),
-            tile("上传", snapshot.network.uploadBytesPerSecond, ::rateQuantity, nonnegativeDouble, stamp, Icons.Rounded.ArrowUpward),
-            onDetail,
-        )
-        MiniPair(
-            tile("累计接收", snapshot.network.totalReceivedBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Download),
-            tile("累计发送", snapshot.network.totalSentBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Upload),
-            onDetail,
-        )
+    SectionCard("GPU", Icons.Rounded.Memory) {
+        snapshot.gpu.name.value?.takeIf { snapshot.gpu.name.available }?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
+        MiniPair(tile("负载", snapshot.gpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Speed),
+            tile("频率", snapshot.gpu.frequencyMhz, ::frequencyQuantity, positiveDouble, stamp, Icons.Rounded.Speed), onDetail)
     }
     SectionCard("帧率", Icons.Rounded.Speed) {
         val fpsStamp = snapshot.fps.sampledElapsedRealtimeMillis?.let { stamp - (snapshot.elapsedRealtimeMillis - it).coerceAtLeast(0) } ?: stamp
-        MiniPair(
-            tile("FPS", snapshot.fps.fps, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, fpsStamp, Icons.Rounded.Speed),
-            tile("1% low", snapshot.fps.onePercentLow, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, fpsStamp, Icons.Rounded.Speed),
-            onDetail,
-        )
+        MiniPair(tile("FPS", snapshot.fps.fps, ::fpsQuantity, { it.isFinite() && it >= 0 }, fpsStamp, Icons.Rounded.Speed),
+            tile("1% low", snapshot.fps.onePercentLow, ::fpsQuantity, { it.isFinite() && it >= 0 }, fpsStamp, Icons.Rounded.Speed), onDetail)
+    }
+    SectionCard("网络", Icons.Rounded.Wifi) {
+        MiniPair(tile("下载", snapshot.network.downloadBytesPerSecond, ::rateQuantity, nonnegativeDouble, stamp, Icons.Rounded.Download),
+            tile("上传", snapshot.network.uploadBytesPerSecond, ::rateQuantity, nonnegativeDouble, stamp, Icons.Rounded.Upload), onDetail)
     }
     if (showStorage) SectionCard("存储", Icons.Rounded.Storage) {
-        MiniPair(
-            tile("可用空间", snapshot.storage.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Storage),
-            tile("分区总计", snapshot.storage.totalBytes, ::bytesQuantity, { it > 0L }, stamp, Icons.Rounded.Storage),
-            onDetail,
-        )
-    }
-    SectionCard("图形", Icons.Rounded.Memory) {
-        MiniPair(
-            tile("GPU 占用", snapshot.gpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Memory),
-            tile("GPU 频率", snapshot.gpu.frequencyMhz, ::frequencyQuantity, positiveDouble, stamp, Icons.Rounded.Speed),
-            onDetail,
-        )
+        MiniPair(tile("可用", snapshot.storage.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Storage),
+            tile("总计", snapshot.storage.totalBytes, ::bytesQuantity, { it > 0 }, stamp, Icons.Rounded.Storage), onDetail)
     }
 }
 
@@ -545,7 +535,7 @@ private fun CpuCoreGroups(cpu: CpuSample, identity: org.libremonitor.core.CpuIde
     val groups = (0 until count).groupBy { index -> known[cpu.coreIds.getOrNull(index) ?: index]?.tier ?: org.libremonitor.core.CoreTier.UNKNOWN }
     org.libremonitor.core.CoreTier.entries.forEach { tier ->
         val indices = groups[tier].orEmpty()
-        if (tier == org.libremonitor.core.CoreTier.UNKNOWN && indices.isEmpty()) return@forEach
+        if (indices.isEmpty()) return@forEach
         val color = when (tier) {
             org.libremonitor.core.CoreTier.PRIME -> MaterialTheme.colorScheme.tertiary
             org.libremonitor.core.CoreTier.PERFORMANCE -> MaterialTheme.colorScheme.primary
@@ -607,64 +597,6 @@ private fun EnvironmentSections(environment: org.libremonitor.core.EnvironmentSa
         val fields = environment.system.entries.toList().let { if (systemExpanded) it else it.take(4) }
         MetricGrid(fields.map { (label, reading) -> tile(label, reading, { Quantity(it, null) }, { it.isNotBlank() }, stamp, Icons.Rounded.Smartphone) }, 2, onDetail)
         TextButton(onClick = { systemExpanded = !systemExpanded }) { Text(if (systemExpanded) "收起系统字段" else "展开省电 / 热状态等字段") }
-    }
-}
-
-@Composable
-private fun CpuHero(cpu: CpuSample, stamp: Long?, accent: Color, onDetail: (MetricDetail) -> Unit,
-    identity: org.libremonitor.core.CpuIdentity? = null) {
-    val tile = tile("CPU 占用", cpu.usagePercent, ::percentQuantity, validPercent, stamp, Icons.Rounded.Speed)
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onDetail(tile.detail) },
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Icon(Icons.Rounded.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    Text("CPU", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-                Text(identity?.name?.value ?: "芯片型号待识别", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.clickable {
-                        identity?.let { onDetail(MetricDetail("CPU 型号", it.name.value, it.name.status,
-                            it.name.source, it.name.reason, "系统标识：${it.rawModel}", stamp)) }
-                    })
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        tile.quantity?.value ?: "—",
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    tile.quantity?.unit?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-                        )
-                    }
-                }
-                Text(
-                    "温度 ${cpu.temperatureC.validValue(validTemperature)?.let(::temperatureQuantity)?.display ?: "—"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                )
-            }
-            Gauge(
-                fraction = tile.quantity?.value?.toDoubleOrNull()?.div(100.0),
-                color = MaterialTheme.colorScheme.primary,
-                track = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.14f),
-                label = "占用",
-                size = 100.dp,
-            )
-        }
     }
 }
 

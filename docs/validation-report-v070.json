@@ -29,8 +29,8 @@
   "android_test_execution": "not run",
   "command": "bash scripts/build-local.sh --offline '-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8' :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
   "apk": {
-    "sha256": "99682474a56d6ae108bb913835314c491524f9dc44df15c170a57ff20eaba815",
-    "bytes": 16434117,
+    "sha256": "baed256784ed86250140f8fb4e9c39bae7e6375727b1c159e7300764bfa15c88",
+    "bytes": 16433270,
     "signer_sha256": "d93b7a4631ad81c1319c92165e3eeedac7561da12c9c4f05dfabc5567e416e73",
     "same_signer_as_v060_release": true
   },
@@ -42,7 +42,8 @@
     "One slow FPS query does not block fast polls or the Root node mutex",
     "Cancellation rejects late results; reused FPS does not inflate stored counts",
     "2/5/10-second targets retain fresh synchronous FPS",
-    "Fractional slider values, nonfinite-input rejection and legacy integer preferences"
+    "Fractional slider values, nonfinite-input rejection and legacy integer preferences",
+    "Overview grouped into device, CPU/core, memory, GPU and frame/network cards without duplicate hero panels"
   ],
   "limits": [
     "No phone/emulator UI execution or battery calibration.",
@@ -50,5 +51,6 @@
     "Oplus profile requires the exact supported driver marker, not a phone-brand or value-magnitude guess.",
     "Current signs and declared battery-interface mapping remain uncalibrated; no charger/SoC/dual-cell power inference.",
     "New Root paths are only the fixed battery/bms model_name fields; schemas and seven-column CSV are unchanged."
-  ]
+  ],
+  "final_ui_checks": "After the final view-only overview simplification: :app:assembleDebug :app:lintDebug passed; main logic regression tests remain 116 core + 111 app."
 }
