@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-07",
+  "branch": "fix/power-and-overlay-settings",
+  "base_commit": "4fab5340a128543ce4945d670da81aa1ecd0c0bb",
+  "version": "0.7.0-dev",
+  "version_code": 17,
+  "checks": {
+    "core": {
+      "tests": 116,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 111,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "apk_build": "passed",
+  "lint": {
+    "errors": [],
+    "warnings": [
+      "HardwareIds"
+    ]
+  },
+  "android_test_compilation": "passed",
+  "android_test_execution": "not run",
+  "command": "bash scripts/build-local.sh --offline '-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8' :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:compileDebugAndroidTestKotlin",
+  "apk": {
+    "sha256": "99682474a56d6ae108bb913835314c491524f9dc44df15c170a57ff20eaba815",
+    "bytes": 16434117,
+    "signer_sha256": "d93b7a4631ad81c1319c92165e3eeedac7561da12c9c4f05dfabc5567e416e73",
+    "same_signer_as_v060_release": true
+  },
+  "evidence": [
+    "Oplus marker/unit profile and 3.935V x -1721mA = -6.772135W fixture",
+    "Unknown-driver small currents stay in documented microamps",
+    "Same-supply pairing, absent/accessory/malformed supplies and Root age bounds",
+    "Live electrical values are not metadata-cached",
+    "One slow FPS query does not block fast polls or the Root node mutex",
+    "Cancellation rejects late results; reused FPS does not inflate stored counts",
+    "2/5/10-second targets retain fresh synchronous FPS",
+    "Fractional slider values, nonfinite-input rejection and legacy integer preferences"
+  ],
+  "limits": [
+    "No phone/emulator UI execution or battery calibration.",
+    "100ms remains a target; the header reports actual loop intervals.",
+    "Oplus profile requires the exact supported driver marker, not a phone-brand or value-magnitude guess.",
+    "Current signs and declared battery-interface mapping remain uncalibrated; no charger/SoC/dual-cell power inference.",
+    "New Root paths are only the fixed battery/bms model_name fields; schemas and seven-column CSV are unchanged."
+  ]
+}

@@ -4,9 +4,11 @@
 
 An independent, offline-first Android system monitor. Apache-2.0.
 
-Current development version: **0.6.0-dev** (versionCode 16). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
+Current development version: **0.7.0-dev** (versionCode 17). Android 8.0+ (API26), Kotlin, Jetpack Compose Material3. No account, analytics, internet permission or boot receiver.
 
 ## Current prototype
+
+- Native green Material3 three-tab navigation: Functions / Overview / Settings, with continuous overlay controls, identified Oplus power-unit support and FPS queries outside the fast overview path. See [0.7.0 development notes](docs/POWER_AND_NATIVE_UI.md).
 
 - Icon-led dashboard with CPU usage gauge, CPU temperature, per-core usage/frequency bars, memory/Swap, network and storage cards.
 - Battery page with level gauge, voltage, current, power, temperature, health status, capacity health, design/full-charge capacity, remaining charge, cycle count and charging source.

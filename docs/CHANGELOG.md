@@ -2,6 +2,13 @@
 
 Dates are development dates; this is not a published release history.
 
+## 0.7.0-dev — 2026-11-07
+
+- Replaced four main tabs with native Material3 功能 / 概览 / 设置 navigation, compact function/settings rows and green accents. Moved technical footnotes to detail views and kept missing/interrupted states explicit.
+- Added continuous fractional overlay opacity/font controls, separate dock opacity, live in-place previews and legacy preference migration, with persistence on release.
+- Added same-supply live battery voltage/current selection, an explicitly identified Oplus mA interface profile, raw electrical diagnostics and a manual current-unit override. Signed battery-terminal power is preserved; no magnitude-based or dual-cell scaling is used.
+- Moved FPS to a single bounded pending query driven by the shared engine, allowed fixed FPS/node operations to overlap, kept slow unrelated probes off the overview and displayed actual refresh intervals. Cached FPS is not recorded as new samples. See [POWER_AND_NATIVE_UI.md](POWER_AND_NATIVE_UI.md).
+
 ## Unreleased — FPS reliability (`fix/fps-reliability`)
 
 - Rotated bounded four-layer discovery pages to reach candidates beyond the first four; prioritized SurfaceView before BLAST, cached validated targets for at most five seconds and cached dumpsys timeout capability per Root session. Foreground package checks and Root session validation remain mandatory.

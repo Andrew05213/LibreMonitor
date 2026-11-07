@@ -2,6 +2,9 @@
 
 ## Current
 
+- [POWER_AND_NATIVE_UI.md](POWER_AND_NATIVE_UI.md): 0.7.0-dev power-unit provenance, native three-tab UI, continuous overlay controls and nonblocking FPS.
+- [validation-report-v070.json](validation-report-v070.json): 227 JVM tests, APK/lint/signing verification and explicit device-validation limits.
+
 | Document | Purpose |
 |---|---|
 | [README](../README.md) / [中文 README](../README.zh-CN.md) | Project summary, current features, build and privacy boundaries. |

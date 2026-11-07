@@ -7,9 +7,9 @@ import org.junit.Test
 class SamplingNodesTest {
     @Test fun steadyStateKeepsLiveValuesButOmitsStaticDiscoveryAndBatteryMetadata() {
         val keys = RootProtocol.samplingNodes(true, false, false, setOf(1, 7)).map { it.key }
-        assertEquals(14, keys.size) // CPU + 8 frequencies + 3 GPU + 2 discovered temperatures.
+        assertEquals(20, keys.size) // CPU + 8 frequencies + 3 GPU + 2 discovered temperatures.
         assertTrue(keys.contains("/sys/class/thermal/thermal_zone7/temp"))
-        assertFalse(keys.any { it.endsWith("/type") || it.startsWith("/sys/class/power_supply/") })
+        assertFalse(keys.any { it.endsWith("/type") || it.endsWith("/charge_full") })
         assertFalse(keys.contains("/proc/net/dev"))
     }
 

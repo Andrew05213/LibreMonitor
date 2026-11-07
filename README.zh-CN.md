@@ -2,7 +2,7 @@
 
 独立的离线 Android 系统监控工具，Apache-2.0 许可。
 
-当前开发版本：**0.6.0-dev**（versionCode 16）。支持 Android 8.0+（API26），使用 Kotlin、Jetpack Compose Material3。无账号、无分析 SDK、无联网权限、无开机自启。
+当前开发版本：**0.7.0-dev**（versionCode 17）。支持 Android 8.0+（API26），使用 Kotlin、Jetpack Compose Material3。无账号、无分析 SDK、无联网权限、无开机自启。
 
 [English](README.md) | **简体中文**
 
@@ -66,3 +66,5 @@ Debug APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。Debug 签名仅
 部分 Android 版本/ROM 会拒绝 `/proc/stat` 或 CPU 频率节点。基础模式下没有全局 CPU 读数是正常情况，不会拿应用自身 CPU 或屏幕刷新率冒充。TrafficStats 是整机累计计数，不是单应用或计费数据。
 
 源码能编译不等于设备测量已经验证；把某个读数当作可信数据前，请先阅读 [STATUS.md](docs/STATUS.md)。
+
+当前开发分支新增绿色 Material3 三栏「功能 / 概览 / 设置」、无级悬浮窗调节、电流单位兼容和不阻塞概览的 FPS 查询，见 [0.7.0 开发说明](docs/POWER_AND_NATIVE_UI.md)。

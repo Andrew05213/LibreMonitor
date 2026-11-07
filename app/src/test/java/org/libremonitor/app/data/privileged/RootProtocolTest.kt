@@ -25,7 +25,7 @@ class RootProtocolTest {
 
     @Test fun fixedAllowlistAndLimits() {
         val nodes = RootProtocol.nodes()
-        assertEquals(1 + 256 + 192 + 26 + 3 + 1, nodes.size)
+        assertEquals(1 + 256 + 192 + 28 + 3 + 1, nodes.size)
         assertEquals(1, nodes.count { it.key == "/proc/stat" && it.limit == 256 * 1024 })
         assertEquals(1, nodes.count { it.key == "thermalservice" && it.limit == 64 * 1024 })
         assertEquals(setOf("gpuclk", "gpubusy", "gpu_busy_percentage"), nodes.filter { it.key.startsWith("/sys/class/kgsl/") }.map { it.key.substringAfterLast('/') }.toSet())
@@ -34,7 +34,7 @@ class RootProtocolTest {
         assertEquals(nodes.size, nodes.map { it.key }.toSet().size)
         assertEquals(256, nodes.count { it.key.contains("/cpufreq/") })
         assertEquals(192, nodes.count { it.key.startsWith("/sys/class/thermal/") })
-        assertEquals(26, nodes.count { it.key.startsWith("/sys/class/power_supply/") })
+        assertEquals(28, nodes.count { it.key.startsWith("/sys/class/power_supply/") })
         assertTrue(nodes.any { it.key.endsWith("cpu255/cpufreq/scaling_cur_freq") })
         assertFalse(nodes.any { it.key.contains("cpu256/") || it.key.contains("thermal_zone96/") })
         val script = RootProtocol.frameScript(id, nodes)
@@ -45,7 +45,7 @@ class RootProtocolTest {
             fail("arbitrary node accepted")
         } catch (_: IllegalArgumentException) { }
         val compact = RootProtocol.compactNodes()
-        assertEquals(2 + 8 + 64 + 26 + 3, compact.size)
+        assertEquals(2 + 8 + 64 + 28 + 3, compact.size)
         assertTrue(RootProtocol.frameScript(id, compact).contains("LM:$id:BEGIN"))
     }
 

@@ -101,7 +101,9 @@ class MainActivity : ComponentActivity() {
                 onPerformanceStop = { runtime.stopPerformanceRecording() },
                 onPerformanceReview = runtime::reviewPerformance,
                 onOverlayOptionsChange = runtime::setOverlayOptions,
+                onOverlayPreview = runtime::previewOverlayOptions,
                 onPageChange = runtime::setPage,
+                onBatteryCurrentModeChange = runtime::setBatteryCurrentMode,
                 onDiagnosticsExport = {
                     val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(Date())
                     createDiagnostics.launch("LibreMonitor-diagnostics-$stamp.json")

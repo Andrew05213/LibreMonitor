@@ -34,6 +34,7 @@ internal class FloatingPanel(private val context: Context, private val windows: 
     private var options = OverlayOptions()
     private var lastOptions: OverlayOptions? = null
     private val values = linkedMapOf<OverlayMetric, TextView>()
+    private val cells = mutableListOf<View>()
     private var grip: TextView? = null
     private var edge = DockEdge.NONE
     private var collapsed = false
@@ -58,13 +59,14 @@ internal class FloatingPanel(private val context: Context, private val windows: 
     fun render(state: MonitorUiState) {
         options = state.settings.overlay
         if (!options.edgeSnap && collapsed) { collapsed = false; expanded(true); edge = DockEdge.NONE; hide() }
-        if (window != null && lastOptions?.copy(opacityPercent = options.opacityPercent) != options) hide()
+        if (window != null && lastOptions?.copy(opacityPercent = options.opacityPercent,
+                dockOpacityPercent = options.dockOpacityPercent, textSizeSp = options.textSizeSp) != options) hide()
         if (window == null) create()
-        if (lastOptions != options) { window?.background = background(collapsed); lastOptions = options }
+        if (lastOptions != options) { applyAppearance(); lastOptions = options }
         val recording = state.activePerformance != null
         if (!collapsed) {
             grip?.text = if (recording) "●" else "•••"
-            grip?.setTextColor(if (recording) 0xffff8078.toInt() else 0xff74e5c2.toInt())
+            grip?.setTextColor(if (recording) 0xffff8078.toInt() else 0xffa3d397.toInt())
             grip?.contentDescription = if (recording) "性能记录中；拖动移动，点击返回应用，长按收起" else "拖动移动，点击返回应用，长按收起"
         } else grip?.contentDescription = "${if (recording) "性能记录中。" else ""}边缘悬浮窗，点击展开，拖动改变位置"
         if (collapsed) return
@@ -95,7 +97,7 @@ internal class FloatingPanel(private val context: Context, private val windows: 
 
     fun hide() {
         window?.let { runCatching { windows.removeViewImmediate(it) } }
-        window = null; parameters = null; values.clear(); grip = null; lastSnapshot = null
+        window = null; parameters = null; values.clear(); cells.clear(); grip = null; lastSnapshot = null
     }
     fun configurationChanged() { hide() }
 
@@ -105,7 +107,7 @@ internal class FloatingPanel(private val context: Context, private val windows: 
         val panel = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val title = Grip(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setTextColor(0xff74e5c2.toInt())
+            setTextColor(0xffa3d397.toInt())
             setOnClickListener { if (collapsed) expand() else open() }
             setOnLongClickListener {
                 if (options.edgeSnap && !collapsed) { dock(nearestEdge()); true } else false
@@ -121,7 +123,7 @@ internal class FloatingPanel(private val context: Context, private val windows: 
             panel.background = background(true)
             panel.addView(title, LinearLayout.LayoutParams(-1, -1))
         } else {
-            width = minOf(dp((options.columns * 92 * options.textSizeSp / 18) + 12), screen.width)
+            width = minOf(dp(((options.columns * 92 * options.textSizeSp / 18) + 12).roundToInt()), screen.width)
             val rows = (options.metrics.size + options.columns - 1) / options.columns
             val rowHeight = dp((options.textSizeSp * context.resources.configuration.fontScale * 1.4f + 22).roundToInt())
             height = minOf(dp(40) + rows * rowHeight, screen.height)
@@ -130,7 +132,7 @@ internal class FloatingPanel(private val context: Context, private val windows: 
             val toolbar = LinearLayout(context)
             toolbar.addView(title, LinearLayout.LayoutParams(0, dp(32), 1f))
             toolbar.addView(TextView(context).apply {
-                text = "×"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(0xffa1afbb.toInt())
+                text = "×"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(0xffc2c8bc.toInt())
                 contentDescription = "关闭悬浮窗；不结束正在进行的性能记录"
                 setOnClickListener { close() }
             }, LinearLayout.LayoutParams(dp(32), dp(32)))
@@ -140,14 +142,15 @@ internal class FloatingPanel(private val context: Context, private val windows: 
                 val row = LinearLayout(context)
                 metrics.forEach { metric ->
                     val cell = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(2), dp(4), dp(4)) }
-                    cell.addView(TextView(context).apply { text = metric.label; textSize = 10f; setTextColor(0xffa1afbb.toInt()) })
+                    cell.addView(TextView(context).apply { text = metric.label; textSize = 10f; setTextColor(0xffc2c8bc.toInt()) })
                     val value = TextView(context).apply {
                         text = "—"; textSize = options.textSizeSp.toFloat(); maxLines = 1
                         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                        setTextColor(if (metric == OverlayMetric.FPS) 0xff74e5c2.toInt() else 0xfff2f6fa.toInt())
+                        setTextColor(if (metric == OverlayMetric.FPS) 0xffa3d397.toInt() else 0xffe2e8de.toInt())
                         setOnClickListener { open() }
                     }
                     values[metric] = value; cell.addView(value)
+                    cells.add(cell)
                     row.addView(cell, LinearLayout.LayoutParams(0, rowHeight, 1f))
                 }
                 repeat(options.columns - metrics.size) { row.addView(View(context), LinearLayout.LayoutParams(0, rowHeight, 1f)) }
@@ -172,14 +175,30 @@ internal class FloatingPanel(private val context: Context, private val windows: 
     }
 
     private fun background(small: Boolean) = GradientDrawable().apply {
-        val alpha = (if (small) options.opacityPercent.coerceAtMost(60) else options.opacityPercent) * 255 / 100
-        setColor((alpha shl 24) or 0x192028)
-        if (!small) { cornerRadius = dp(14).toFloat(); setStroke(dp(1), 0x334f6a7d) }
+        val alpha = ((if (small) options.dockOpacityPercent else options.opacityPercent) * 255 / 100).roundToInt()
+        setColor((alpha shl 24) or 0x1a211b)
+        if (!small) { cornerRadius = dp(14).toFloat(); setStroke(dp(1), 0x334b6243) }
         else {
             val r = dp(28).toFloat()
             cornerRadii = if (edge == DockEdge.LEFT) floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
                 else floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
         }
+    }
+    private fun applyAppearance() {
+        val panel = window ?: return
+        panel.background = background(collapsed)
+        if (collapsed || lastOptions?.textSizeSp == options.textSizeSp) return
+        values.values.forEach { it.textSize = options.textSizeSp }
+        val rowHeight = dp((options.textSizeSp * context.resources.configuration.fontScale * 1.4f + 22).roundToInt())
+        cells.forEach { it.layoutParams = it.layoutParams.apply { height = rowHeight } }
+        val a = area()
+        val p = parameters ?: return
+        p.width = minOf(dp((options.columns * 92 * options.textSizeSp / 18 + 12).roundToInt()), a.width)
+        p.height = minOf(dp(40) + ((options.metrics.size + options.columns - 1) / options.columns) * rowHeight, a.height)
+        x = when (edge) { DockEdge.LEFT -> a.left; DockEdge.RIGHT -> a.right - p.width; else -> x.coerceIn(a.left, (a.right - p.width).coerceAtLeast(a.left)) }
+        y = a.top + OverlayDocking.clampY(y - a.top, p.height, a.height)
+        p.x = x; p.y = y
+        runCatching { windows.updateViewLayout(panel, p) }
     }
     private fun nearestEdge(): DockEdge = if (x < area().left + area().width / 2) DockEdge.LEFT else DockEdge.RIGHT
     private fun dock(target: DockEdge) { edge = target; collapsed = true; expanded(false); hide(); create() }

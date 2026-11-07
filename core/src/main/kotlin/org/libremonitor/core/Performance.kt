@@ -80,7 +80,9 @@ data class PerformancePoint(
                     PerformanceMetric.VOLTAGE -> battery.voltageV
                 } }
             }.mapValues { (metric, reading) ->
-                if (!reading.available || reading.value?.let(metric::accepts) == true) reading
+                if (!snapshot.fps.hasNewReading && metric in setOf(PerformanceMetric.FPS, PerformanceMetric.FPS_LOW, PerformanceMetric.FRAME_TIME))
+                    Reading.unavailable(reading.source, FpsSample.NOT_RESAMPLED)
+                else if (!reading.available || reading.value?.let(metric::accepts) == true) reading
                 else Reading.unavailable(reading.source, "样本无效，未作为 0 记录", ReadingStatus.ERROR)
             }
             return PerformancePoint((snapshot.elapsedRealtimeMillis - sessionStartedElapsedMillis).coerceAtLeast(0),
@@ -101,10 +103,11 @@ data class PerformanceReview(
     val fpsFailures: Map<String, Int> = emptyMap(),
     val fpsTargets: Map<String, Int> = emptyMap(),
     val fpsValidTargets: Map<String, Int> = emptyMap(),
+    val fpsAttemptCount: Int = session.sampleCount,
 ) {
     /** Display guard only; this is not a statistical confidence or game-coverage guarantee. */
     val fpsSummaryAvailable: Boolean get() = (stats[PerformanceMetric.FPS]?.validCount ?: 0).let {
-        it >= 10 && it.toLong() * 2 >= session.sampleCount
+        it >= 10 && it.toLong() * 2 >= fpsAttemptCount
     }
     companion object {
         fun build(session: PerformanceSession, points: Sequence<PerformancePoint>): PerformanceReview =
@@ -125,6 +128,7 @@ data class PerformanceReview(
         private val fpsFailures = linkedMapOf<String, Int>()
         private val fpsTargets = linkedMapOf<String, Int>()
         private val fpsValidTargets = linkedMapOf<String, Int>()
+        private var fpsAttempts = 0
         private fun count(map: MutableMap<String, Int>, text: String) {
             val value = text.take(512)
             val key = if (value in map || map.size < 64) value else "其他"
@@ -132,7 +136,8 @@ data class PerformanceReview(
         }
         fun add(point: PerformancePoint) {
             val fps = point.readings[PerformanceMetric.FPS]
-            if (fps?.available != true || fps.value?.let(PerformanceMetric.FPS::accepts) != true)
+            if (fps?.reason != FpsSample.NOT_RESAMPLED) fpsAttempts++
+            if (fps?.reason != FpsSample.NOT_RESAMPLED && (fps?.available != true || fps.value?.let(PerformanceMetric.FPS::accepts) != true))
                 count(fpsFailures, fps?.reason ?: "FPS 样本缺失或无效")
             if (point.target.available) point.target.value?.let { count(fpsTargets, it) }
             if (point.target.available && fps?.available == true && fps.value?.let(PerformanceMetric.FPS::accepts) == true)
@@ -166,7 +171,7 @@ data class PerformanceReview(
                 val i = it.ordinal
                 PerformanceStats(count[i], if (count[i] == 0) null else sum[i] / count[i],
                     min[i].takeIf { count[i] > 0 }, max[i].takeIf { count[i] > 0 })
-            }, timeline.toList(), last?.readings.orEmpty(), gaps.toMap(), fpsFailures.toMap(), fpsTargets.toMap(), fpsValidTargets.toMap())
+            }, timeline.toList(), last?.readings.orEmpty(), gaps.toMap(), fpsFailures.toMap(), fpsTargets.toMap(), fpsValidTargets.toMap(), fpsAttempts)
         }
     }
 }

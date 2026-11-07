@@ -29,6 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.BatteryChargingFull
@@ -62,6 +64,10 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -129,9 +135,9 @@ import org.libremonitor.core.RootAccess
 import kotlin.math.roundToInt
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF0B6B57),
+    primary = Color(0xFF386A20),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFB8F2DF),
+    primaryContainer = Color(0xFFBCEFA2),
     onPrimaryContainer = Color(0xFF002019),
     secondary = Color(0xFF49675E),
     secondaryContainer = Color(0xFFD8ECE4),
@@ -147,16 +153,16 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF7DE2C3),
+    primary = Color(0xFFA3D397),
     onPrimary = Color(0xFF00382C),
-    primaryContainer = Color(0xFF0D5143),
-    onPrimaryContainer = Color(0xFFB8F2DF),
+    primaryContainer = Color(0xFF274E21),
+    onPrimaryContainer = Color(0xFFBCEFA2),
     secondary = Color(0xFFB0CCC1),
-    secondaryContainer = Color(0xFF304C42),
-    tertiary = Color(0xFFFFC46B),
-    background = Color(0xFF0A1210),
+    secondaryContainer = Color(0xFF344C2C),
+    tertiary = Color(0xFFB7D29E),
+    background = Color(0xFF10140F),
     onBackground = Color(0xFFE1EAE4),
-    surface = Color(0xFF111D19),
+    surface = Color(0xFF1A211B),
     onSurface = Color(0xFFE1EAE4),
     surfaceVariant = Color(0xFF25352E),
     onSurfaceVariant = Color(0xFFB7C7BD),
@@ -164,8 +170,8 @@ private val DarkColors = darkColorScheme(
     outlineVariant = Color(0xFF3A4D43),
 )
 
-private val LightAccent = Color(0xFFF0A227)
-private val DarkAccent = Color(0xFFFFC46B)
+private val LightAccent = Color(0xFF386A20)
+private val DarkAccent = Color(0xFFB7D29E)
 
 private data class LiveState(val label: String, val container: Color, val content: Color)
 
@@ -173,126 +179,108 @@ private data class LiveState(val label: String, val container: Color, val conten
 @Composable
 fun LibreMonitorScreen(state: MonitorUiState, actions: MonitorActions) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(selectedTab) { actions.onPageChange(org.libremonitor.core.SamplingPlan.Page.entries[selectedTab]) }
+    var route by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var detail by remember { mutableStateOf<MetricDetail?>(null) }
     val dark = isSystemInDarkTheme()
     val colors = if (dark) DarkColors else LightColors
-    val accent = if (dark) DarkAccent else LightAccent
-    val tabs = listOf(
-        Triple("概览", Icons.Rounded.Dashboard, 0),
-        Triple("电池", Icons.Rounded.BatteryFull, 1),
-        Triple("性能", Icons.Rounded.Speed, 2),
-        Triple("设置", Icons.Rounded.Settings, 3),
-    )
-
+    val accent = colors.primary
+    val page = when {
+        route == "battery" -> org.libremonitor.core.SamplingPlan.Page.BATTERY
+        route == "performance" -> org.libremonitor.core.SamplingPlan.Page.PERFORMANCE
+        route == "hardware" -> org.libremonitor.core.SamplingPlan.Page.HARDWARE
+        route == "network" -> org.libremonitor.core.SamplingPlan.Page.NETWORK
+        route == "bluetooth" -> org.libremonitor.core.SamplingPlan.Page.BLUETOOTH
+        route == "system" -> org.libremonitor.core.SamplingPlan.Page.SYSTEM
+        route != null || selectedTab == 2 -> org.libremonitor.core.SamplingPlan.Page.SETTINGS
+        selectedTab == 1 -> org.libremonitor.core.SamplingPlan.Page.OVERVIEW
+        else -> org.libremonitor.core.SamplingPlan.Page.FUNCTIONS
+    }
+    LaunchedEffect(page) { actions.onPageChange(page) }
+    androidx.activity.compose.BackHandler(enabled = route != null) { route = null }
+    val title = when (route) {
+        "battery" -> "电池电量"; "performance" -> "性能记录"; "overlay" -> "悬浮监视器"
+        "hardware" -> "硬件信息"; "network" -> "网络状态"; "bluetooth" -> "蓝牙设备"
+        "system" -> "系统状态"; "diagnostics" -> "采集诊断"; else -> "LibreMonitor"
+    }
+    val tabs = listOf(Triple("功能", Icons.Rounded.Dashboard, 0), Triple("概览", Icons.Rounded.Monitor, 1), Triple("设置", Icons.Rounded.Settings, 2))
     MaterialTheme(colorScheme = colors) {
-        Scaffold(
-            containerColor = colors.background,
-            contentWindowInsets = WindowInsets.safeDrawing,
-            topBar = { AppHeader(state) },
+        Scaffold(containerColor = colors.background, contentWindowInsets = WindowInsets.safeDrawing,
+            topBar = { AppHeader(state, title, route != null) { route = null } },
             bottomBar = {
-                NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
+                if (route == null) NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
                     tabs.forEach { (label, icon, index) ->
-                        NavigationBarItem(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                        )
+                        NavigationBarItem(selected = selectedTab == index,
+                            onClick = { selectedTab = index; route = null }, icon = { Icon(icon, label) }, label = { Text(label) })
                     }
                 }
-            },
-        ) { insets ->
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(insets),
-            ) {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    state.error?.let { ErrorBanner(it, actions.onDismissError) }
-                    key(selectedTab) {
-                        when (selectedTab) {
-                            0 -> OverviewPage(state, actions, accent) { detail = it }
-                            1 -> BatteryPage(state, actions, accent, { detail = it }) { confirmClear = true }
-                            2 -> PerformancePage(state, actions)
-                            else -> SettingsPage(state, actions, accent) { confirmClear = true }
+            }) { insets ->
+            Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(if (selectedTab == 1 && route == null) 12.dp else 4.dp)) {
+                state.error?.let { ErrorBanner(it, actions.onDismissError) }
+                key(selectedTab, route) {
+                    when (route) {
+                        "battery" -> BatteryPage(state, actions, accent, { detail = it }) { confirmClear = true }
+                        "performance" -> PerformancePage(state, actions)
+                        "overlay" -> {
+                            ListItem(headlineContent = { Text("悬浮监视器") }, leadingContent = { Icon(Icons.Rounded.Layers, null) },
+                                trailingContent = { Switch(state.overlayEnabled, { actions.onOverlayToggle() }) })
+                            OverlayCustomization(state.settings.overlay, actions.onOverlayOptionsChange, actions.onOverlayPreview)
+                        }
+                        "hardware" -> { SectionCard("设备", Icons.Rounded.Smartphone) { DeviceRows(state.device) }; OverviewPage(state, actions, accent, showStorage = true) { detail = it } }
+                        "network", "system" -> state.snapshot?.let { snapshot ->
+                            if (route == "network") SectionCard("网络", Icons.Rounded.Wifi) {
+                                MiniPair(tile("下载", snapshot.network.downloadBytesPerSecond, ::rateQuantity, nonnegativeDouble, snapshot.timestampEpochMillis, Icons.Rounded.Download),
+                                    tile("上传", snapshot.network.uploadBytesPerSecond, ::rateQuantity, nonnegativeDouble, snapshot.timestampEpochMillis, Icons.Rounded.Upload)) { detail = it }
+                            }
+                            val environment = if (route == "network") snapshot.environment.copy(system = emptyMap()) else snapshot.environment.copy(connectivity = emptyMap())
+                            EnvironmentSections(environment, snapshot.timestampEpochMillis -
+                                (snapshot.elapsedRealtimeMillis - environment.sampledElapsedMillis).coerceAtLeast(0), actions) { detail = it }
+                        }
+                        "bluetooth" -> BluetoothSection(state, actions, state.snapshot?.timestampEpochMillis) { detail = it }
+                        "diagnostics" -> {
+                            Text(state.samplingDiagnosticsSummary, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 16.dp))
+                            Button(actions.onDiagnosticsExport, modifier = Modifier.fillMaxWidth()) { Text("导出采集诊断") }
+                        }
+                        else -> when (selectedTab) {
+                            0 -> FunctionsPage { route = it }
+                            1 -> OverviewPage(state, actions, accent) { detail = it }
+                            else -> NativeSettingsPage(state, actions, { route = "overlay" }) { confirmClear = true }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
                 }
+                Spacer(Modifier.height(12.dp))
             }
         }
-        if (confirmClear) {
-            ClearHistoryDialog(
-                onDismiss = { confirmClear = false },
-                onConfirm = {
-                    confirmClear = false
-                    actions.onClearHistory()
-                },
-            )
-        }
-        detail?.let { item -> MetricDetailSheet(item, onDismiss = { detail = null }) }
+        if (confirmClear) ClearHistoryDialog(onDismiss = { confirmClear = false }, onConfirm = { confirmClear = false; actions.onClearHistory() })
+        detail?.let { item -> MetricDetailSheet(item) { detail = null } }
     }
 }
 
 @Composable
-private fun AppHeader(state: MonitorUiState) {
+private fun FunctionsPage(open: (String) -> Unit) {
+    listOf(Triple("硬件信息", Icons.Rounded.Smartphone, "hardware"), Triple("电池电量", Icons.Rounded.BatteryFull, "battery"),
+        Triple("性能记录", Icons.Rounded.Speed, "performance"), Triple("悬浮监视器", Icons.Rounded.Layers, "overlay"),
+        Triple("网络状态", Icons.Rounded.Wifi, "network"), Triple("蓝牙设备", Icons.Rounded.Bluetooth, "bluetooth"),
+        Triple("系统状态", Icons.Rounded.Info, "system"), Triple("采集诊断", Icons.Rounded.Tune, "diagnostics")).forEach { (title, icon, route) ->
+        ListItem(headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
+            leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable { open(route) })
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    }
+}
+
+@Composable
+private fun AppHeader(state: MonitorUiState, title: String, back: Boolean, navigateBack: () -> Unit) {
     val live = liveState(state)
-    Surface(color = MaterialTheme.colorScheme.background) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer),
-                        ),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.Monitor,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(25.dp),
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "LibreMonitor",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "设备仪表盘",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Surface(shape = RoundedCornerShape(50), color = live.container) {
-                Row(
-                    Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    Box(Modifier.size(7.dp).background(live.content, CircleShape))
-                    Text(live.label, style = MaterialTheme.typography.labelMedium, color = live.content)
-                }
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (back) IconButton(navigateBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            if (state.samplingActive) Surface(shape = RoundedCornerShape(50), color = live.container) {
+                Text(if (live.label == "实时") state.actualIntervalMillis?.let { ReadingFormat.interval(it.coerceAtLeast(1)) } ?: live.label else live.label,
+                    Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = live.content, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -352,6 +340,7 @@ private fun OverviewPage(
     state: MonitorUiState,
     actions: MonitorActions,
     accent: Color,
+    showStorage: Boolean = false,
     onDetail: (MetricDetail) -> Unit,
 ) {
     val snapshot = state.snapshot
@@ -369,6 +358,12 @@ private fun OverviewPage(
         return
     }
     val stamp = snapshot.timestampEpochMillis
+    state.device?.let { device ->
+        SectionCard(device.model, Icons.Rounded.Smartphone) {
+            InfoRow("芯片", device.cpuIdentity.name.value ?: "—")
+            InfoRow("架构", device.abis.joinToString(" / "))
+        }
+    }
     CpuHero(snapshot.cpu, stamp, accent, onDetail, state.device?.cpuIdentity)
     MetricGrid(
         listOf(
@@ -408,17 +403,15 @@ private fun OverviewPage(
             onDetail,
         )
     }
-    BluetoothSection(state, actions, stamp, onDetail)
-    EnvironmentSections(snapshot.environment, snapshot.timestampEpochMillis -
-        (snapshot.elapsedRealtimeMillis - snapshot.environment.sampledElapsedMillis).coerceAtLeast(0), actions, onDetail)
     SectionCard("帧率", Icons.Rounded.Speed) {
+        val fpsStamp = snapshot.fps.sampledElapsedRealtimeMillis?.let { stamp - (snapshot.elapsedRealtimeMillis - it).coerceAtLeast(0) } ?: stamp
         MiniPair(
-            tile("FPS", snapshot.fps.fps, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, stamp, Icons.Rounded.Speed),
-            tile("1% low", snapshot.fps.onePercentLow, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, stamp, Icons.Rounded.Speed),
+            tile("FPS", snapshot.fps.fps, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, fpsStamp, Icons.Rounded.Speed),
+            tile("1% low", snapshot.fps.onePercentLow, ::fpsQuantity, { it.isFinite() && it >= 0.0 }, fpsStamp, Icons.Rounded.Speed),
             onDetail,
         )
     }
-    SectionCard("存储", Icons.Rounded.Storage) {
+    if (showStorage) SectionCard("存储", Icons.Rounded.Storage) {
         MiniPair(
             tile("可用空间", snapshot.storage.availableBytes, ::bytesQuantity, nonnegativeLong, stamp, Icons.Rounded.Storage),
             tile("分区总计", snapshot.storage.totalBytes, ::bytesQuantity, { it > 0L }, stamp, Icons.Rounded.Storage),
@@ -550,10 +543,6 @@ private fun CpuCoreGroups(cpu: CpuSample, identity: org.libremonitor.core.CpuIde
     val count = maxOf(cpu.perCoreUsagePercent.size, cpu.frequenciesMhz.size, cpu.coreIds.size)
     val known = identity?.cores.orEmpty().associateBy { it.id }
     val groups = (0 until count).groupBy { index -> known[cpu.coreIds.getOrNull(index) ?: index]?.tier ?: org.libremonitor.core.CoreTier.UNKNOWN }
-    identity?.catalog?.let {
-        Text("型号库参考 · ${it.prime} 超大核 / ${it.performance} 性能核 / ${it.efficiency} 能效核",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
     org.libremonitor.core.CoreTier.entries.forEach { tier ->
         val indices = groups[tier].orEmpty()
         if (tier == org.libremonitor.core.CoreTier.UNKNOWN && indices.isEmpty()) return@forEach
@@ -564,19 +553,14 @@ private fun CpuCoreGroups(cpu: CpuSample, identity: org.libremonitor.core.CpuIde
         }
         Surface(color = color.copy(alpha = 0.08f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${tier.label} · ${indices.size}", color = color, fontWeight = FontWeight.Bold,
+                Text("${tier.label} · ${indices.size}${if (indices.any { known[cpu.coreIds.getOrNull(it) ?: it]?.source?.contains("推断") == true }) "（推断）" else ""}", color = color, fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleSmall)
                 if (indices.isEmpty()) Text("未识别到该类型的逻辑核心", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val descriptions = indices.mapNotNull { known[cpu.coreIds.getOrNull(it) ?: it] }.map { it.architecture ?: it.source }.distinct()
-                if (descriptions.isNotEmpty()) Text(descriptions.joinToString(" / "), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 indices.forEach { index -> CoreRow(cpu, index, stamp, onDetail) }
             }
         }
     }
-    Text("逻辑核心按内核 CPU part 识别；容量分组会标明推断。型号库参考数量不强行映射到 CPU 编号。",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -623,8 +607,6 @@ private fun EnvironmentSections(environment: org.libremonitor.core.EnvironmentSa
         val fields = environment.system.entries.toList().let { if (systemExpanded) it else it.take(4) }
         MetricGrid(fields.map { (label, reading) -> tile(label, reading, { Quantity(it, null) }, { it.isNotBlank() }, stamp, Icons.Rounded.Smartphone) }, 2, onDetail)
         TextButton(onClick = { systemExpanded = !systemExpanded }) { Text(if (systemExpanded) "收起系统字段" else "展开省电 / 热状态等字段") }
-        Text("系统与连接状态最多每 5 秒更新；点击字段可查看来源与不可用原因。", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -884,7 +866,7 @@ private fun BatteryPage(
             listOf(
                 tile("电压", battery.voltageV, ::voltageQuantity, positiveDouble, stamp, Icons.Rounded.Bolt),
                 tile("电流", battery.currentMa, ::currentQuantity, finiteNumber, stamp, Icons.Rounded.Power),
-                tile("功率", battery.powerW, ::powerQuantity, finiteNumber, stamp, Icons.Rounded.Power),
+                tile("电池端功率", battery.powerW, ::powerQuantity, finiteNumber, stamp, Icons.Rounded.Power),
                 tile("温度", battery.temperatureC, ::temperatureQuantity, validTemperature, stamp, Icons.Rounded.Thermostat),
                 tile("健康状态", battery.healthStatus, { Quantity(it, null) }, { it.isNotBlank() }, stamp, Icons.Rounded.Favorite),
                 tile("容量健康", battery.healthPercent, ::percentQuantity, validHealthPercent, stamp, Icons.Rounded.BatteryChargingFull),
@@ -950,89 +932,6 @@ private fun BatteryHero(battery: BatterySample?, stamp: Long?, onDetail: (Metric
                 size = 100.dp,
             )
         }
-    }
-}
-
-@Composable
-private fun SettingsPage(state: MonitorUiState, actions: MonitorActions, accent: Color, requestClear: () -> Unit) {
-    SectionCard("刷新频率", Icons.Rounded.Tune) {
-        listOf(100L, 200L, 500L, 1_000L, 2_000L, 5_000L, 10_000L).chunked(2).forEach { intervals ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                intervals.forEach { interval ->
-                    FilterChip(
-                        selected = state.settings.sampleIntervalMs == interval,
-                        onClick = { actions.onSampleIntervalChange(interval) },
-                        label = { Text(ReadingFormat.interval(interval)) },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    )
-                }
-            }
-        }
-        Text(
-            "更快刷新会增加资源消耗；实际间隔取决于采集耗时。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    SectionCard("悬浮窗", Icons.Rounded.Layers) {
-        SwitchRow(
-            icon = Icons.Rounded.Layers,
-            title = "显示悬浮监测",
-            subtitle = if (state.overlayEnabled) "已开启" else "已关闭",
-            checked = state.overlayEnabled,
-            onCheckedChange = { actions.onOverlayToggle() },
-        )
-        OverlayCustomization(state.settings.overlay, actions.onOverlayOptionsChange)
-    }
-    SectionCard("电池记录", Icons.Rounded.History) {
-        SwitchRow(
-            icon = Icons.Rounded.History,
-            title = "保存电池历史",
-            subtitle = "每 ${ReadingFormat.interval(state.settings.historyIntervalMs)} · 保留 ${state.settings.retentionDays} 天",
-            checked = state.settings.historyEnabled,
-            onCheckedChange = actions.onHistoryEnabledChange,
-        )
-        Text(
-            "当前 ${state.history.size} 条",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = actions.onExport, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("导出 CSV")
-            }
-            OutlinedButton(
-                onClick = requestClear,
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) {
-                Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("清除")
-            }
-        }
-    }
-    SectionCard("访问能力", Icons.Rounded.Shield) {
-        InfoRow("普通模式", "逐项检测")
-        InfoRow("Shizuku", "未接入")
-        RootControl(state, actions)
-        SwitchRow(
-            icon = Icons.Rounded.Refresh,
-            title = "打开应用时自动恢复 Root",
-            subtitle = "仅前台尝试，仍需 Root 管理器批准",
-            checked = state.settings.autoRestoreRoot,
-            onCheckedChange = actions.onAutoRestoreRootChange,
-        )
-    }
-    SectionCard("设备", Icons.Rounded.Smartphone) {
-        DeviceRows(state.device)
-    }
-    SectionCard("关于", Icons.Rounded.Info) {
-        InfoRow("版本", "0.4.2-dev")
-        InfoRow("许可证", "Apache-2.0")
-        InfoRow("网络", "无联网权限")
     }
 }
 
@@ -1385,4 +1284,57 @@ private fun swapUsedPercent(memory: MemorySample): Reading<Double> {
     val free = memory.swapFreeBytes.validValue { it in 0L..total }
         ?: return Reading.unavailable("/proc/meminfo:SwapUsed", "缺少 Swap 空闲量")
     return Reading((total - free).toDouble() * 100.0 / total.toDouble(), "SwapTotal − SwapFree")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NativeSettingsPage(state: MonitorUiState, actions: MonitorActions, overlay: () -> Unit, clear: () -> Unit) {
+    var dialog by rememberSaveable { mutableStateOf<String?>(null) }
+    var rootPanel by rememberSaveable { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val version = remember(context) { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty() }.getOrDefault("—") }
+    Text("监测", Modifier.padding(top = 12.dp, bottom = 4.dp), color = MaterialTheme.colorScheme.primary)
+    NativeSettingRow("刷新间隔", Icons.Rounded.Tune, ReadingFormat.interval(state.settings.sampleIntervalMs)) { dialog = "interval" }
+    NativeSettingRow("悬浮监视器", Icons.Rounded.Layers, if (state.overlayEnabled) "开启" else "关闭", overlay)
+    NativeSettingRow("运行模式", Icons.Rounded.Shield, if (state.rootState.access == RootAccess.GRANTED) "Root" else "普通") { rootPanel = true }
+    ListItem(headlineContent = { Text("打开应用时恢复 Root") }, leadingContent = { Icon(Icons.Rounded.Refresh, null) },
+        trailingContent = { Switch(state.settings.autoRestoreRoot, actions.onAutoRestoreRootChange) })
+    HorizontalDivider()
+    Text("电池", Modifier.padding(top = 12.dp, bottom = 4.dp), color = MaterialTheme.colorScheme.primary)
+    NativeSettingRow("电流单位", Icons.Rounded.Power, state.settings.batteryCurrentMode.label) { dialog = "current" }
+    ListItem(headlineContent = { Text("保存电池历史") }, leadingContent = { Icon(Icons.Rounded.History, null) },
+        trailingContent = { Switch(state.settings.historyEnabled, actions.onHistoryEnabledChange) })
+    NativeSettingRow("导出电池历史", Icons.Rounded.FileDownload, "CSV", actions.onExport)
+    NativeSettingRow("清除电池历史", Icons.Rounded.Delete, "${state.history.size} 条", clear)
+    HorizontalDivider()
+    Text("关于", Modifier.padding(top = 12.dp, bottom = 4.dp), color = MaterialTheme.colorScheme.primary)
+    ListItem(headlineContent = { Text("LibreMonitor") }, trailingContent = { Text(version) }, leadingContent = { Icon(Icons.Rounded.Info, null) })
+    ListItem(headlineContent = { Text("许可证") }, trailingContent = { Text("Apache-2.0") })
+    if (dialog != null) {
+        val current = dialog
+        AlertDialog(onDismissRequest = { dialog = null }, title = { Text(if (current == "interval") "刷新间隔" else "电流单位") },
+            text = { Column {
+                if (current == "interval") listOf(100L, 200L, 500L, 1_000L, 2_000L, 5_000L, 10_000L).forEach { interval ->
+                    Row(Modifier.fillMaxWidth().clickable { actions.onSampleIntervalChange(interval); dialog = null }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(state.settings.sampleIntervalMs == interval, { actions.onSampleIntervalChange(interval); dialog = null })
+                        Text(ReadingFormat.interval(interval))
+                    }
+                } else org.libremonitor.core.BatteryCurrentMode.entries.forEach { mode ->
+                    Row(Modifier.fillMaxWidth().clickable { actions.onBatteryCurrentModeChange(mode); dialog = null }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(state.settings.batteryCurrentMode == mode, { actions.onBatteryCurrentModeChange(mode); dialog = null })
+                        Text(mode.label)
+                    }
+                }
+            } }, confirmButton = { TextButton({ dialog = null }) { Text("关闭") } })
+    }
+    if (rootPanel) ModalBottomSheet(onDismissRequest = { rootPanel = false }) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { RootControl(state, actions) }
+    }
+}
+
+@Composable
+private fun NativeSettingRow(title: String, icon: ImageVector, value: String, click: () -> Unit) {
+    ListItem(headlineContent = { Text(title) }, leadingContent = { Icon(icon, null) },
+        trailingContent = { Row(verticalAlignment = Alignment.CenterVertically) { Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant); Icon(Icons.Rounded.ChevronRight, null) } },
+        modifier = Modifier.clickable(onClick = click))
 }

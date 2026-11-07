@@ -147,7 +147,8 @@ internal object BatteryCollector {
         val voltage = extraInt(BatteryManager.EXTRA_VOLTAGE).mapReading(
             source = "$BROADCAST:voltage（mV → V）",
         ) { it.takeIf { mv -> mv in 1..30_000 }?.div(1_000.0) }
-        val current = property(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW, CURRENT).mapReading {
+        val rawCurrent = property(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW, CURRENT)
+        val current = rawCurrent.mapReading {
             it.takeIf { microamps -> microamps in -100_000_000..100_000_000 }?.div(1_000.0)
         }
         val charge = property(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER, CHARGE).mapReading {
@@ -237,6 +238,8 @@ internal object BatteryCollector {
             ),
             cycleCount = cycleCount,
             chargingSource = chargingSource,
+            electricalDiagnostics = org.libremonitor.core.BatteryElectricalDiagnostics(
+                rawCurrent.mapReading { it.toLong() }),
         )
     }
 

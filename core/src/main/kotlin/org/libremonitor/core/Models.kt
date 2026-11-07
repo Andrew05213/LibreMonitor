@@ -56,10 +56,10 @@ data class BatterySample(
     val levelPercent: Reading<Int>,
     val temperatureC: Reading<Double>,
     val voltageV: Reading<Double>,
-    /** Raw Android CURRENT_NOW converted to mA; OEM sign convention is not calibrated. */
+    /** Selected current in mA with explicit source/unit provenance; OEM sign is not calibrated. */
     val currentMa: Reading<Double>,
     val chargeCounterMah: Reading<Double>,
-    /** V x CURRENT_NOW; battery-terminal estimate, not charger or processor power. */
+    /** Selected battery voltage x current; battery-terminal estimate, not charger or processor power. */
     val powerW: Reading<Double>,
     val status: String,
     val technology: String?,
@@ -70,7 +70,12 @@ data class BatterySample(
     val fullChargeCapacityMah: Reading<Double> = Reading.unavailable("battery", "Not sampled"),
     val cycleCount: Reading<Long> = Reading.unavailable("battery", "Not sampled"),
     val chargingSource: Reading<String> = Reading.unavailable("battery", "Not sampled"),
+    val electricalDiagnostics: BatteryElectricalDiagnostics? = null,
 )
+
+enum class BatteryCurrentMode(val label: String) { AUTO("自动识别"), MICROAMPS("标准 µA"), MILLIAMPS("厂商 mA") }
+data class BatteryElectricalDiagnostics(val rawApiCurrent: Reading<Long>, val selectedSupply: String? = null,
+    val currentUnit: String = "µA", val nodes: Map<String, Reading<String>> = emptyMap())
 
 data class GpuSample(
     val name: Reading<String> = Reading.unavailable("gpu", "Not sampled"),
@@ -97,14 +102,17 @@ data class FpsSample(
     val frameTimeMs: Reading<Double> = Reading.unavailable("Frame time", "Not sampled"),
     val target: Reading<String> = Reading.unavailable("SurfaceFlinger", "Not sampled"),
     val rootSessionId: Long? = null,
+    val hasNewReading: Boolean = true,
+    val sampledElapsedRealtimeMillis: Long? = null,
 ) {
     /** Validate again at publication, not only when the IO operation returns. */
     fun validatedFor(root: RootState): FpsSample {
         if (root.access == RootAccess.GRANTED && (!fps.available || rootSessionId == root.sessionId)) return this
         val reason = "Root 会话已停用或更换，等待新的帧率样本"
         return FpsSample(Reading.unavailable("SurfaceFlinger", reason), Reading.unavailable("SurfaceFlinger", reason),
-            Reading.unavailable("SurfaceFlinger", reason), Reading.unavailable("SurfaceFlinger", reason))
+            Reading.unavailable("SurfaceFlinger", reason), Reading.unavailable("SurfaceFlinger", reason), hasNewReading = hasNewReading)
     }
+    companion object { const val NOT_RESAMPLED = "本轮未重新采集帧率" }
 }
 
 /** Public-API Bluetooth view. RSSI/core version are deliberately unavailable when Android does not expose them. */
@@ -187,6 +195,7 @@ data class MonitorSettings(
     /** Foreground convenience only: still requires Root-manager authorization and never boots silently. */
     val autoRestoreRoot: Boolean = false,
     val overlay: OverlayOptions = OverlayOptions(),
+    val batteryCurrentMode: BatteryCurrentMode = BatteryCurrentMode.AUTO,
 ) {
     init {
         require(sampleIntervalMs in SAMPLE_INTERVAL_RANGE_MS)

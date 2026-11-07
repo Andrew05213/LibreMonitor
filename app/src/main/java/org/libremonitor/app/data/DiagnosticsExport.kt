@@ -30,6 +30,7 @@ internal object DiagnosticsExport {
                 out.name("selected_saved_session").beginObject().name("id").value(review.session.id)
                     .name("name").value(review.session.name).name("samples").value(review.session.sampleCount)
                     .name("fps_valid").value(review.stats[PerformanceMetric.FPS]?.validCount)
+                    .name("fps_attempts").value(review.fpsAttemptCount)
                     .name("fps_failures").beginObject()
                 review.fpsFailures.forEach { (reason, count) -> out.name(reason).value(count) }; out.endObject()
                 out.name("observed_targets_including_failed_queries").beginObject()
@@ -47,6 +48,23 @@ internal object DiagnosticsExport {
                     .name("fps_requested").value(trace.fpsRequested).name("published_fps_available").value(trace.fps.fps.available)
                     .name("published_fps").value(trace.fps.fps.value).name("published_reason").value(trace.fps.fps.reason)
                     .name("target").value(trace.fps.target.value)
+                    .name("fps_read_completed_elapsed_ms").value(trace.fps.sampledElapsedRealtimeMillis)
+                trace.battery?.let { battery ->
+                    out.name("battery").beginObject().name("voltage_v").value(battery.voltageV.value)
+                        .name("current_ma").value(battery.currentMa.value).name("power_w").value(battery.powerW.value)
+                        .name("current_source").value(battery.currentMa.source).name("current_reason").value(battery.currentMa.reason)
+                    battery.electricalDiagnostics?.let { electrical ->
+                        out.name("raw_android_current").value(electrical.rawApiCurrent.value)
+                            .name("selected_supply").value(electrical.selectedSupply).name("current_unit").value(electrical.currentUnit)
+                            .name("nodes").beginObject()
+                        electrical.nodes.forEach { (path, reading) ->
+                            out.name(path).beginObject().name("value").value(reading.value).name("status").value(reading.status.name)
+                                .name("reason").value(reading.reason).endObject()
+                        }
+                        out.endObject()
+                    }
+                    out.endObject()
+                }
                 trace.attempt?.let { attempt ->
                     out.name("query_ms").value(attempt.durationMillis).name("query_fps_available").value(attempt.sample.fps.available)
                         .name("sampled_monotonic_ns").value(attempt.sampledMonotonicNanos)

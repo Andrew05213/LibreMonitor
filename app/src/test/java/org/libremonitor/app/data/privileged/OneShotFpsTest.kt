@@ -47,6 +47,31 @@ class OneShotFpsTest {
         assertEquals(0, starts.get())
     }
 
+    @Test fun aBlockedFpsQueryDoesNotOccupyTheFastNodeFrameMutex() = runBlocking {
+        lateinit var blocked: Fake
+        val entered = CompletableDeferred<Unit>()
+        val reader = OneShotRootReader(startProcess = { script ->
+            when {
+                script.contains("FPSBEGIN") -> Fake(fps(script), CountDownLatch(1)).also { blocked = it; entered.complete(Unit) }
+                script.contains(":BEGIN") -> {
+                    val nonce = id(script)
+                    val body = RootProtocol.overlayNodes().mapIndexed { index, _ ->
+                        "LM:$nonce:$index:" + Base64.getEncoder().encodeToString("1".toByteArray()) + "\n"
+                    }.joinToString("")
+                    Fake("LM:$nonce:BEGIN\n${body}LM:$nonce:END\n")
+                }
+                else -> Fake(probe(script))
+            }
+        }, readTimeoutMs = 5_000, elapsedMillis = { 1_000L })
+        assertTrue(reader.requestAuthorization())
+        val slow = async(Dispatchers.Default) { reader.readFps() }
+        withTimeout(2_000) { entered.await() }
+        try {
+            val frame = withTimeout(2_000) { reader.readOverlayFrame() }
+            assertNotNull("slow FPS must not block fast Root nodes", frame)
+        } finally { blocked.gate.countDown(); slow.await(); reader.close() }
+    }
+
     @Test fun parsesFreshExchangeThroughActualBackend() = runBlocking {
         val reader = OneShotRootReader({ script -> Fake(if (script.contains("FPSBEGIN")) fps(script) else probe(script)) })
         assertTrue(reader.requestAuthorization())

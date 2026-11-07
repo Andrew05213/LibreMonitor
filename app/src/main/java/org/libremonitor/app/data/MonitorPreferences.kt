@@ -54,6 +54,7 @@ class MonitorPreferences(context: Context) {
                     is Command.SetSampleInterval -> current.copy(sampleIntervalMs = command.millis)
                     is Command.SetAutoRestoreRoot -> current.copy(autoRestoreRoot = command.enabled)
                     is Command.SetOverlay -> current.copy(overlay = command.options)
+                    is Command.SetCurrentMode -> current.copy(batteryCurrentMode = command.mode)
                 }
                 if (next != current) {
                     persist(preferences, next)
@@ -80,6 +81,7 @@ class MonitorPreferences(context: Context) {
     }
 
     fun setOverlayOptions(options: OverlayOptions) { enqueue(Command.SetOverlay(options)) }
+    fun setBatteryCurrentMode(mode: org.libremonitor.core.BatteryCurrentMode) { enqueue(Command.SetCurrentMode(mode)) }
 
     fun close() {
         synchronized(lifecycleLock) {
@@ -112,17 +114,20 @@ class MonitorPreferences(context: Context) {
                 .coerceIn(1, 30),
             autoRestoreRoot = values[AUTO_RESTORE_ROOT] as? Boolean ?: defaults.autoRestoreRoot,
             overlay = OverlayOptions.decode(values),
+            batteryCurrentMode = org.libremonitor.core.BatteryCurrentMode.entries.firstOrNull { it.name == values["battery_current_mode"] }
+                ?: org.libremonitor.core.BatteryCurrentMode.AUTO,
         )
     }
 
     private fun matches(values: Map<String, *>, settings: MonitorSettings): Boolean =
-        values[HISTORY_ENABLED] == settings.historyEnabled &&
+            values["battery_current_mode"] == settings.batteryCurrentMode.name && values[HISTORY_ENABLED] == settings.historyEnabled &&
             values[SAMPLE_INTERVAL] == settings.sampleIntervalMs &&
             values[HISTORY_INTERVAL] == settings.historyIntervalMs &&
             values[RETENTION_DAYS] == settings.retentionDays &&
             values[AUTO_RESTORE_ROOT] == settings.autoRestoreRoot && OverlayOptions.decode(values) == settings.overlay &&
             values["overlay_metrics"] == settings.overlay.metrics.joinToString(",") { it.name } &&
             values["overlay_columns"] == settings.overlay.columns && values["overlay_opacity"] == settings.overlay.opacityPercent &&
+            values["overlay_dock_opacity"] == settings.overlay.dockOpacityPercent &&
             values["overlay_text_size"] == settings.overlay.textSizeSp && values["overlay_edge_snap"] == settings.overlay.edgeSnap
 
     private fun persist(preferences: SharedPreferences, settings: MonitorSettings) {
@@ -130,6 +135,7 @@ class MonitorPreferences(context: Context) {
         // A failed disk write still updates SharedPreferences' in-memory values; expose
         // the requested live setting, but do not imply durable persistence succeeded.
         val saved = preferences.edit()
+            .putString("battery_current_mode", settings.batteryCurrentMode.name)
             .putBoolean(HISTORY_ENABLED, settings.historyEnabled)
             .putLong(SAMPLE_INTERVAL, settings.sampleIntervalMs)
             .putLong(HISTORY_INTERVAL, settings.historyIntervalMs)
@@ -137,14 +143,16 @@ class MonitorPreferences(context: Context) {
             .putBoolean(AUTO_RESTORE_ROOT, settings.autoRestoreRoot)
             .putString("overlay_metrics", settings.overlay.metrics.joinToString(",") { it.name })
             .putInt("overlay_columns", settings.overlay.columns)
-            .putInt("overlay_opacity", settings.overlay.opacityPercent)
-            .putInt("overlay_text_size", settings.overlay.textSizeSp)
+            .putFloat("overlay_opacity", settings.overlay.opacityPercent)
+            .putFloat("overlay_text_size", settings.overlay.textSizeSp)
+            .putFloat("overlay_dock_opacity", settings.overlay.dockOpacityPercent)
             .putBoolean("overlay_edge_snap", settings.overlay.edgeSnap)
             .commit()
         if (!saved) Log.w(LOG_TAG, "Monitor preferences could not be saved to private storage")
     }
 
     private sealed interface Command {
+        data class SetCurrentMode(val mode: org.libremonitor.core.BatteryCurrentMode) : Command
         data class SetHistory(val enabled: Boolean) : Command
         data class SetSampleInterval(val millis: Long) : Command
         data class SetAutoRestoreRoot(val enabled: Boolean) : Command

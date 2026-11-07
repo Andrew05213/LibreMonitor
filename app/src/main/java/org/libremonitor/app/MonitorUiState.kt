@@ -17,6 +17,7 @@ data class MonitorUiState(
     val overlayEnabled: Boolean = false,
     val serviceRunning: Boolean = false,
     val samplingActive: Boolean = false,
+    val actualIntervalMillis: Long? = null,
     val samplingDiagnosticsSummary: String = "尚无采集诊断",
     val error: String? = null,
     val rootState: RootState = RootState(),
@@ -55,4 +56,6 @@ data class MonitorActions(
     val onPhonePermissionRequest: () -> Unit = {},
     val onPageChange: (org.libremonitor.core.SamplingPlan.Page) -> Unit = {},
     val onDiagnosticsExport: () -> Unit = {},
+    val onBatteryCurrentModeChange: (org.libremonitor.core.BatteryCurrentMode) -> Unit = {},
+    val onOverlayPreview: (org.libremonitor.core.OverlayOptions) -> Unit = {},
 )

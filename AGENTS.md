@@ -4,7 +4,7 @@ This is an independent Android monitoring app. Do not copy OpenMonitor code, bra
 
 ## Current scope
 
-- Current development version is `0.6.0-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
+- Current development version is `0.7.0-dev`; verify `app/build.gradle.kts` before repeating a version in prose.
 - The UI is an icon-led dashboard. Primary cards show label, value and unit; provenance and failure explanations belong in details.
 - Bluetooth uses public APIs only. Do not fake core version, per-device RSSI or battery; permission-denied and unavailable states must remain explicit.
 - Earbud BLE scans are explicit, foreground-only, bounded to 30s and expire readings after 60s. Do not associate rotating addresses by name, or persist raw advertisements. Bluetooth PAN counters are not headphone audio throughput.
@@ -19,6 +19,9 @@ This is an independent Android monitoring app. Do not copy OpenMonitor code, bra
 - Rates use monotonic elapsed time; reject counter resets and missing baselines.
 - CPU temperature is a named HAL/regional sensor, not a verified per-core junction temperature.
 - Battery power is an uncalibrated battery-terminal estimate, not charger/SoC power. Capacity health is only a same-battery, same-unit full/design ratio.
+- Current units come from documented interfaces, an explicit driver marker or a user override, never the reading magnitude. Oplus current adaptation requires the exact supported model marker; preserve raw signs and same-supply voltage/current pairing.
+- FPS has at most one pending query driven by the shared engine, with no independent polling loop. It may overlap one fixed node operation; cached FPS never counts as a newly recorded measurement.
+- Overlay controls persist fractional Float values while accepting legacy Int preferences. Keep sliders continuous, update previews in place and persist on release.
 - One shared sampling engine feeds UI, recording and overlay; do not add duplicate loops.
 - Continuous recording/overlay must be opt-in, visible and stoppable. No wake lock or boot receiver.
 

@@ -1,6 +1,12 @@
-# Current validation status — 0.6.0-dev
+# Current validation status — 0.7.0-dev
 
 Updated 2026-11-07 for unreleased branch work. Released 0.6.0 build evidence remains dated 2026-11-05. This is a development prototype, not a production or cross-device validated release.
+
+## 0.7.0-dev branch work
+
+Native three-tab navigation, continuous overlay previews, identified Oplus current-unit handling and a bounded asynchronous FPS path are implemented on `fix/power-and-overlay-settings`. See [POWER_AND_NATIVE_UI.md](POWER_AND_NATIVE_UI.md). Earlier performance/FPS branches remain intact. Actual 100ms throughput, UI behavior on the phone and the phone's exact electrical-interface mapping remain unverified.
+
+Local offline validation passed **116 core + 111 app JVM tests (227 total)**, APK packaging, Lint (**0 errors, 1 existing HardwareIds warning**) and Android instrumentation-test compilation. Instrumentation tests were not executed. The 0.7.0-dev APK has versionCode 17 and the prior release's debug signing certificate. See [validation-report-v070.json](validation-report-v070.json).
 
 ## Unreleased sampling optimization
 

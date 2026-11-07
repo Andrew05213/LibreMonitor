@@ -8,7 +8,7 @@ internal data class SamplerTimings(val environmentMs: Long = 0, val fpsMs: Long 
     val frameMs: Long = 0, val otherCollectorsMs: Long = 0)
 internal data class SamplingTrace(val startedElapsedMs: Long, val targetIntervalMs: Long, val cycleMs: Long,
     val mode: String, val fpsRequested: Boolean, val fps: FpsSample, val timings: SamplerTimings, val attempt: FpsAttempt?,
-    val enqueueWaitMs: Long = 0)
+    val enqueueWaitMs: Long = 0, val battery: org.libremonitor.core.BatterySample? = null)
 internal data class WriteTimings(val batches: Long, val points: Long, val failures: Long,
     val meanMs: Double?, val maximumMs: Long?)
 internal data class DiagnosticsSnapshot(val cycles: Long, val fpsQueries: Long, val fpsValid: Long,

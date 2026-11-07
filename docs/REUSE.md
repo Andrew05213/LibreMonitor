@@ -56,3 +56,12 @@ https://api.github.com/repos/1orz/OpenMonitor/contents/ at research time listed 
 Google Linux SDK native binaries are commonly x86_64. The local ARM64 helper uses https://github.com/lzhiyong/android-sdk-tools/releases/tag/35.0.2 (third-party static AOSP/NDK build, not official Google ARM64). Downloads/provenance live in ignored `.toolchain/toolchain-provenance.json`. Google SDK package checksums and Gradle's official SHA256 are verified. When the third-party release has no supplied digest, a locally computed hash records bytes only; it is not independent authenticity verification. Run an actual resource build as well as `aapt2 version`.
 
 Licenses are per component and version. Preserve applicable copyright, license and NOTICE files when redistributing; this document is an engineering inventory, not a substitute for a full release legal review or an automated transitive-dependency SBOM.
+
+
+## Oplus battery interface research (0.7.0-dev)
+
+OnePlusOSS public kernel interface facts were inspected to distinguish nonstandard mA exports from the normal Linux µA ABI. No GPL implementation code, function bodies or binaries were copied. The application implements its own bounded collector, explicit marker selection, source checks and unit conversions.
+
+- [Oplus GKI battery interface](https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8550/blob/oneplus/sm8550_v_15.0.0_oneplus11/vendor/oplus/kernel/charger/v2/oplus_chg_gki.c), Git blob `9e865246f646f453f5eb98210f7c0c9060b1d5a3`: CURRENT_NOW forwards gauge data without µA scaling; MODEL_NAME identifies `oplus battery`.
+- [MMS gauge current interface](https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8550/blob/oneplus/sm8550_v_15.0.0_oneplus11/vendor/oplus/kernel/charger/v2/mms/oplus_mms_gauge.c), blob `cbd4ee5df086e5fe732e517ff9b239c6678e9b21`: gauge current is forwarded without a unit conversion.
+- [Gauge IC interface](https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8550/blob/oneplus/sm8550_v_15.0.0_oneplus11/vendor/oplus/kernel/charger/v2/gauge_ic/oplus_hal_bq27541.c), blob `73887d9b700e9196b74465ba824f4d2ebb862589`: current output is explicitly named `curr_ma`. These GPL-2.0-only sources document an interface profile, not proof that every OnePlus ROM uses it.

@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -50,7 +52,6 @@ internal fun PerformancePage(state: MonitorUiState, actions: MonitorActions) {
     val active = state.activePerformance
     PerformanceCard {
         Text("性能记录", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("开始记录后进入游戏，结束后回到这里查看表现。", style = MaterialTheme.typography.bodyMedium)
         if (active == null) {
             OutlinedTextField(name, { name = it.take(80) }, label = { Text("游戏 / 场次名称（选填）") },
                 singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -70,20 +71,9 @@ internal fun PerformancePage(state: MonitorUiState, actions: MonitorActions) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("游戏悬浮窗", fontWeight = FontWeight.Medium)
-                Text("CPU · GPU · 内存 · FPS", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = state.overlayEnabled, onCheckedChange = { actions.onOverlayToggle() })
         }
-        Text("目标间隔 ${ReadingFormat.interval(state.settings.sampleIntervalMs)}，可在设置中调整，最低 100 毫秒。锁屏暂停性能采样，亮屏后继续。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-    PerformanceCard {
-        Text("采集诊断", style = MaterialTheme.typography.titleMedium)
-        Text(state.samplingDiagnosticsSummary, style = MaterialTheme.typography.bodySmall)
-        Text("诊断含前台应用包名、图层名及有限的帧时间响应。保存到你选择的位置后可手动分享；不会自动上传。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = actions.onDiagnosticsExport, enabled = !state.performanceReviewLoading) { Text("导出采集诊断") }
     }
     if (state.performanceReviewLoading) {
         Text("正在读取性能记录…", color = MaterialTheme.colorScheme.primary)
@@ -107,8 +97,7 @@ internal fun PerformancePage(state: MonitorUiState, actions: MonitorActions) {
                 }
             }
         }
-        Text("数据仅保存在本机。保留最近 20 场、合计最多 10 万个样本，超限清理最早已结束记录；单场达到 10 万样本会自动保存结束。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
     }
 }
 
@@ -116,6 +105,7 @@ internal fun PerformancePage(state: MonitorUiState, actions: MonitorActions) {
 private fun PerformanceReport(review: PerformanceReview) {
     var metricName by rememberSaveable(review.session.id) { mutableStateOf(PerformanceMetric.FPS.name) }
     val metric = PerformanceMetric.valueOf(metricName)
+    var showDetails by rememberSaveable(review.session.id) { mutableStateOf(false) }
     PerformanceCard {
         Text(review.session.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("${durationLabel(review.session.durationMillis)} · ${review.session.sampleCount} 个样本",
@@ -130,8 +120,6 @@ private fun PerformanceReport(review: PerformanceReview) {
                 }
             }
         }
-        if (!review.fpsSummaryAvailable) Text("FPS 有效 ${review.stats[PerformanceMetric.FPS]?.validCount ?: 0}/${review.session.sampleCount}；覆盖不足或样本太少，不能代表本场表现。下方保留有效样本统计。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HorizontalDivider()
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val ordered = listOf(PerformanceMetric.FPS, PerformanceMetric.CPU, PerformanceMetric.GPU, PerformanceMetric.MEMORY) +
@@ -154,14 +142,16 @@ private fun PerformanceReport(review: PerformanceReview) {
             Text("00:00", style = MaterialTheme.typography.labelSmall)
             Text(durationLabel(review.session.durationMillis), style = MaterialTheme.typography.labelSmall)
         }
-        Text("有效 ${stats?.validCount ?: 0} / ${review.session.sampleCount} 个样本；均值与极值基于全部有效样本，曲线为抽样预览。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        review.lastReadings[metric]?.let { last ->
-            Text(if (last.available) "来源：${last.source}" else "最后样本：${last.reason ?: "暂不可用"} · ${last.source}",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text("功率为电池端估算，保留设备原始电流正负号。窗口 1% low 和帧时间描述各采样点的最近帧窗口。CPU 频率为本次可读核心的平均值。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (metric == PerformanceMetric.FPS) "有效 ${stats?.validCount ?: 0} / ${review.fpsAttemptCount} 次帧率查询"
+            else "有效 ${stats?.validCount ?: 0} / ${review.session.sampleCount} 个样本")
+        TextButton(onClick = { showDetails = true }) { Text("数据详情") }
+        if (showDetails) AlertDialog(onDismissRequest = { showDetails = false }, title = { Text(metric.label) }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                review.lastReadings[metric]?.let { Text(it.source); it.reason?.let { reason -> Text(reason) } }
+                Text("电池端功率保留原始方向。FPS 为最近帧窗口，沿用值不重复计入统计。")
+                if (!review.fpsSummaryAvailable) Text("FPS 有效样本少于 10 个或成功率不足 50%，主摘要显示样本不足。")
+            }
+        }, confirmButton = { TextButton(onClick = { showDetails = false }) { Text("关闭") } })
     }
 }
 

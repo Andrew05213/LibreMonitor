@@ -31,12 +31,14 @@ class OneShotRootReader internal constructor(
     private val authTimeoutMs: Long = 60_000L,
     private val readTimeoutMs: Long = 15_000L,
     private val monotonicNanos: () -> Long = { System.nanoTime() },
+    private val elapsedMillis: () -> Long = { SystemClock.elapsedRealtime() },
 ) : RootSession {
     constructor() : this({ script ->
         ProcessBuilder("su", "-c", script).redirectErrorStream(false).start()
     })
 
     private val operation = Mutex()
+    private val fpsOperation = Mutex()
     private val mutableState = MutableStateFlow(RootState())
     override val state: StateFlow<RootState> = mutableState.asStateFlow()
     private var nextSessionId = 0L
@@ -81,7 +83,7 @@ class OneShotRootReader internal constructor(
     override suspend fun readOverlayFrame(): PrivilegedNodeFrame? = readFrame(RootProtocol.overlayNodes())
     override suspend fun readSamplingFrame(details: Boolean, network: Boolean): PrivilegedNodeFrame? {
         val session = state.value.sessionId
-        val now = SystemClock.elapsedRealtime()
+        val now = elapsedMillis()
         val discover = details && (metadataSession != session || now - metadataAt !in 0..29_999)
         val nodes = RootProtocol.samplingNodes(details, network, discover, thermalZones)
         val frame = readFrame(nodes) ?: return null
@@ -94,7 +96,7 @@ class OneShotRootReader internal constructor(
         // Capacities, cycles and sensor labels are explicitly annotated slow metadata.
         // Never merge cached temperatures, frequencies, current, voltage or GPU readings.
         val slow = if (details && metadataSession == frame.sessionId && frame.sampledElapsedRealtimeMs - metadataAt in 0..29_999)
-            metadata.filterKeys { !it.endsWith("/current_now") && !it.endsWith("/voltage_now") && !it.endsWith("/status") }
+            metadata.filterKeys { !it.endsWith("/current_now") && !it.endsWith("/voltage_now") && !it.endsWith("/status") && !it.endsWith("/present") }
                 .mapValues { (_, reading) -> reading.copy(reason = listOfNotNull(reading.reason, "静态字段缓存，最长 30 秒").joinToString("；")) }
             else emptyMap()
         return frame.copy(readings = slow + frame.readings)
@@ -107,7 +109,7 @@ class OneShotRootReader internal constructor(
             val root = mutableState.value
             if (root.access != RootAccess.GRANTED) return null
             val id = randomId()
-            val started = SystemClock.elapsedRealtime()
+            val started = elapsedMillis()
             val output = runInterruptible(Dispatchers.IO) {
                 run(RootProtocol.frameScript(id, nodes), timeoutMs)
             } ?: return null
@@ -118,7 +120,7 @@ class OneShotRootReader internal constructor(
             val readings = RootProtocol.readFrame(
                 ByteArrayInputStream(clean.toByteArray(Charsets.US_ASCII)), id, nodes,
             )
-            val ended = SystemClock.elapsedRealtime()
+            val ended = elapsedMillis()
             if (ended < started || ended - started > timeoutMs) return null
             synchronized(this) {
                 if (mutableState.value.access != RootAccess.GRANTED ||
@@ -173,7 +175,7 @@ class OneShotRootReader internal constructor(
                 full?.layers?.map { it.timestamps.size }.orEmpty(), monotonicNanos())
             return sample
         }
-        if (!operation.tryLock()) return report(FpsTracker.unavailable("Root 正在处理其他请求"))
+        if (!fpsOperation.tryLock()) return report(FpsTracker.unavailable("帧率查询正在进行"))
         return try {
             val root = mutableState.value
             if (root.access != RootAccess.GRANTED) return report(FpsTracker.unavailable("请先启用 Root 帧率读取"))
@@ -205,7 +207,7 @@ class OneShotRootReader internal constructor(
             synchronized(fpsLifecycle) { fpsQueries.reset() }
             report(FpsTracker.unavailable("帧率响应读取或解析失败"))
         } finally {
-            operation.unlock()
+            fpsOperation.unlock()
         }
     }
 

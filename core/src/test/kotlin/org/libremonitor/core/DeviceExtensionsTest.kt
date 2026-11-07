@@ -40,11 +40,20 @@ class DeviceExtensionsTest {
         val decoded = OverlayOptions.decode(mapOf("overlay_metrics" to "FPS,INVALID,CPU,FPS", "overlay_opacity" to 200,
             "overlay_columns" to 9, "overlay_text_size" to 0, "overlay_edge_snap" to false))
         assertEquals(listOf(OverlayMetric.FPS, OverlayMetric.CPU), decoded.metrics)
-        assertEquals(100, decoded.opacityPercent); assertEquals(2, decoded.columns); assertEquals(12, decoded.textSizeSp)
+        assertEquals(100f, decoded.opacityPercent, 0f); assertEquals(2, decoded.columns); assertEquals(12f, decoded.textSizeSp, 0f)
         assertFalse(decoded.edgeSnap)
         assertEquals(OverlayOptions().metrics, OverlayOptions.decode(mapOf("overlay_metrics" to "INVALID")).metrics)
     }
     @Test(expected = IllegalArgumentException::class) fun overlayCannotHaveNoMetrics() { OverlayOptions(metrics = emptyList()) }
+    @Test fun fractionalOverlayValuesSurviveDecodeAndLegacyIntegersStillLoad() {
+        val options = OverlayOptions.decode(mapOf("overlay_opacity" to 83.275f, "overlay_text_size" to 17.625f,
+            "overlay_dock_opacity" to 61.125f))
+        assertEquals(83.275f, options.opacityPercent, 0f)
+        assertEquals(17.625f, options.textSizeSp, 0f)
+        assertEquals(61.125f, options.dockOpacityPercent, 0f)
+        assertEquals(85f, OverlayOptions.decode(mapOf("overlay_opacity" to 85)).opacityPercent, 0f)
+        assertEquals(85f, OverlayOptions.decode(mapOf("overlay_opacity" to Float.NaN)).opacityPercent, 0f)
+    }
     @Test fun edgeThresholdAndVerticalClampWorkForSmallAndRotatedScreens() {
         assertEquals(DockEdge.LEFT, OverlayDocking.edge(24, 184, 600, 24))
         assertEquals(DockEdge.RIGHT, OverlayDocking.edge(392, 184, 600, 24))

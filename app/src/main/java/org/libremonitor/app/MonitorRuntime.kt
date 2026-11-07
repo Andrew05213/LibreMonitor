@@ -151,7 +151,7 @@ class MonitorRuntime(private val context: Context) {
             val settingsDemand = state.map {
                 // Appearance changes must not cancel reads or discard CPU/network baselines.
                 Triple(it.settings.copy(autoRestoreRoot = false, overlay = it.settings.overlay.copy(
-                    columns = 2, opacityPercent = 85, textSizeSp = 18, edgeSnap = true)),
+                    columns = 2, opacityPercent = 85f, textSizeSp = 18f, dockOpacityPercent = 55f, edgeSnap = true)),
                     it.overlayEnabled, it.activePerformance != null)
             }.distinctUntilChanged()
             val options = combine(settingsDemand, page, overlayExpanded) { settings, selected, expanded -> Triple(settings, selected, expanded) }
@@ -159,12 +159,16 @@ class MonitorRuntime(private val context: Context) {
                 val (settings, overlay, performance) = demand
                 SamplingPlan.forDemand(shown, service, screen, overlay, settings, performance, selected, expanded)
             }.distinctUntilChanged().collectLatest { plan ->
+                sampler.cancelSlowReads()
                 val continuity = ++samplingContinuity
                 mutableState.update { it.copy(samplingActive = plan.needsSnapshot) }
                 if (plan.mode == SamplingPlan.Mode.IDLE) return@collectLatest
                 if (plan.needsSnapshot) sampler.resetRateBaselines()
+                var previousSampleStarted: Long? = null
                 while (currentCoroutineContext().isActive) {
                     val sampleStarted = SystemClock.elapsedRealtime()
+                    val actualInterval = previousSampleStarted?.let { sampleStarted - it }
+                    previousSampleStarted = sampleStarted
                     // Failed samples retain a full retry delay even if collection was slow.
                     var nextDelayMs = if (plan.needsSnapshot) plan.sampleIntervalMs else plan.historyIntervalMs
                     var sampled: MonitorSnapshot? = null
@@ -188,11 +192,14 @@ class MonitorRuntime(private val context: Context) {
                             val collected = sampler.sample(includeDetails = plan.dashboard,
                                 includePerformanceDetails = plan.hardwareDetails,
                                 includeNetwork = plan.collectNetwork, includeFps = plan.collectFps,
-                                includeRootDiagnostics = !plan.recordPerformance && plan.sampleIntervalMs >= 1_000)
+                                includeRootDiagnostics = !plan.recordPerformance && plan.sampleIntervalMs >= 1_000,
+                                currentMode = state.value.settings.batteryCurrentMode, intervalMillis = plan.sampleIntervalMs,
+                                includeEnvironment = plan.collectEnvironment, includeBluetooth = plan.collectBluetooth,
+                                includeStorage = plan.collectStorage)
                             val snapshot = collected.copy(fps = collected.fps.validatedFor(rootReader.state.value))
                             sampled = snapshot
                             // Main-thread publication and disableRoot cannot interleave here.
-                            mutableState.update { it.copy(snapshot = snapshot) }
+                            mutableState.update { it.copy(snapshot = snapshot, actualIntervalMillis = actualInterval) }
                             if (session != null && state.value.activePerformance?.id == session.id && snapshot.elapsedRealtimeMillis >= started) {
                                 val enqueueStarted = SystemClock.elapsedRealtime()
                                 savePerformancePoint(session, started, snapshot)
@@ -201,7 +208,7 @@ class MonitorRuntime(private val context: Context) {
                             record = BatteryRecord.from(snapshot)
                             elapsed = snapshot.elapsedRealtimeMillis
                         } else {
-                            record = sampler.sampleBatteryRecord()
+                            record = sampler.sampleBatteryRecord(state.value.settings.batteryCurrentMode)
                             elapsed = SystemClock.elapsedRealtime()
                         }
                         val settings = state.value.settings
@@ -218,8 +225,8 @@ class MonitorRuntime(private val context: Context) {
                         val finished = SystemClock.elapsedRealtime()
                         sampled?.let { snapshot ->
                             diagnostics.record(SamplingTrace(sampleStarted, plan.sampleIntervalMs, finished - sampleStarted,
-                                plan.mode.name, plan.collectFps, snapshot.fps, sampler.lastTimings,
-                                if (plan.collectFps) rootReader.fpsDiagnosticSnapshot() else null, enqueueWaitMs), continuity)
+                                plan.mode.name, plan.collectFps && snapshot.fps.hasNewReading, snapshot.fps, sampler.lastTimings,
+                                sampler.lastFpsAttempt, enqueueWaitMs, snapshot.battery), continuity)
                             if (finished - diagnosticsUiAt >= 1_000) { refreshDiagnosticSummary(); diagnosticsUiAt = finished }
                         }
                         nextDelayMs = plan.delayAfterSampleMillis(finished - sampleStarted)
@@ -297,6 +304,16 @@ class MonitorRuntime(private val context: Context) {
     fun setSampleInterval(value: Long) {
         try { preferences.setSampleIntervalMs(value) }
         catch (e: Exception) { reportError("无法保存刷新间隔：${e.javaClass.simpleName}") }
+    }
+
+    fun setBatteryCurrentMode(value: org.libremonitor.core.BatteryCurrentMode) {
+        mutableState.update { it.copy(settings = it.settings.copy(batteryCurrentMode = value)) }
+        preferences.setBatteryCurrentMode(value)
+    }
+
+    fun previewOverlayOptions(options: org.libremonitor.core.OverlayOptions) {
+        overlayIntent = options
+        mutableState.update { it.copy(settings = it.settings.copy(overlay = options)) }
     }
 
     fun setOverlayOptions(options: org.libremonitor.core.OverlayOptions) {
@@ -471,6 +488,7 @@ class MonitorRuntime(private val context: Context) {
         rootRequestInFlight = false
         rootManuallyDisabled = true
         rootReader.close()
+        sampler.cancelSlowReads()
         mutableState.update {
             it.copy(rootState = rootReader.state.value,
                 snapshot = it.snapshot?.let { sample -> sample.copy(fps = sample.fps.validatedFor(rootReader.state.value)) })

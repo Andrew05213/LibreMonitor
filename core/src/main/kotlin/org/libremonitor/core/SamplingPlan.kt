@@ -12,9 +12,12 @@ data class SamplingPlan(
     val hardwareDetails: Boolean = false,
     val collectFps: Boolean = false,
     val collectNetwork: Boolean = false,
+    val collectEnvironment: Boolean = false,
+    val collectBluetooth: Boolean = false,
+    val collectStorage: Boolean = false,
 ) {
     enum class Mode { IDLE, LIVE, OVERLAY, PERFORMANCE, HISTORY }
-    enum class Page { OVERVIEW, BATTERY, PERFORMANCE, SETTINGS }
+    enum class Page { OVERVIEW, BATTERY, PERFORMANCE, SETTINGS, FUNCTIONS, HARDWARE, NETWORK, BLUETOOTH, SYSTEM }
 
     val needsSnapshot: Boolean get() = mode == Mode.LIVE || mode == Mode.OVERLAY || mode == Mode.PERFORMANCE
 
@@ -35,13 +38,15 @@ data class SamplingPlan(
             overlayExpanded: Boolean = true,
         ): SamplingPlan {
             val recording = serviceRunning && settings.historyEnabled
-            val dashboard = uiVisible && page == Page.OVERVIEW
+            val dashboard = uiVisible && page in setOf(Page.OVERVIEW, Page.HARDWARE)
             val battery = uiVisible && page == Page.BATTERY
+            val environment = uiVisible && page in setOf(Page.NETWORK, Page.SYSTEM)
+            val bluetooth = uiVisible && page == Page.BLUETOOTH
             val overlay = serviceRunning && overlayEnabled && overlayExpanded
             val performance = serviceRunning && screenInteractive && performanceRecording
             return SamplingPlan(
                 when {
-                    screenInteractive && (dashboard || battery) -> Mode.LIVE
+                    screenInteractive && (dashboard || battery || environment || bluetooth) -> Mode.LIVE
                     screenInteractive && serviceRunning && performanceRecording -> Mode.PERFORMANCE
                     screenInteractive && overlay -> Mode.OVERLAY
                     recording -> Mode.HISTORY
@@ -52,7 +57,9 @@ data class SamplingPlan(
                 dashboard = dashboard,
                 hardwareDetails = dashboard || battery || performance || (overlay && settings.overlay.needsHardwareDetails),
                 collectFps = dashboard || performance || (overlay && OverlayMetric.FPS in settings.overlay.metrics),
-                collectNetwork = dashboard || (overlay && settings.overlay.needsNetwork),
+                collectNetwork = dashboard || (uiVisible && page == Page.NETWORK) || (overlay && settings.overlay.needsNetwork),
+                collectEnvironment = environment, collectBluetooth = bluetooth,
+                collectStorage = uiVisible && page == Page.HARDWARE,
             )
         }
     }

@@ -20,7 +20,7 @@ internal object RootProtocol {
     private const val HAL_LIMIT = 64 * 1024
     private val powerFields = listOf(
         "type", "scope", "present", "status", "health", "charge_full_design", "charge_full",
-        "energy_full_design", "energy_full", "cycle_count", "state_of_health", "voltage_now", "current_now",
+        "energy_full_design", "energy_full", "cycle_count", "state_of_health", "voltage_now", "current_now", "model_name",
     )
     // Prefer the direct percentage before gpubusy: some KGSL reads clear stats while powered off.
     private val gpuFields = listOf("gpuclk", "gpu_busy_percentage", "gpubusy")
@@ -84,6 +84,7 @@ internal object RootProtocol {
                 node.key == "/proc/stat" || node.key.startsWith("/sys/class/kgsl/") -> true
                 node.key == "/proc/net/dev" -> network
                 !details -> false
+                node.key.startsWith("/sys/class/power_supply/") && node.key.substringAfterLast('/') in setOf("present", "voltage_now", "current_now") -> true
                 node.key.startsWith("/sys/devices/system/cpu/") -> true
                 zone != null -> metadata || (zone.groupValues[1].toInt() in zones && zone.groupValues[2] == "temp")
                 else -> metadata

@@ -12,28 +12,32 @@ enum class OverlayMetric(val label: String, val performance: PerformanceMetric? 
 data class OverlayOptions(
     val metrics: List<OverlayMetric> = listOf(OverlayMetric.CPU, OverlayMetric.GPU, OverlayMetric.MEMORY, OverlayMetric.FPS),
     val columns: Int = 2,
-    val opacityPercent: Int = 85,
-    val textSizeSp: Int = 18,
+    val opacityPercent: Float = 85f,
+    val textSizeSp: Float = 18f,
     val edgeSnap: Boolean = true,
+    val dockOpacityPercent: Float = 55f,
 ) {
     init {
         require(metrics.isNotEmpty() && metrics.size <= OverlayMetric.entries.size && metrics.distinct() == metrics)
-        require(columns in 1..2 && opacityPercent in 30..100 && textSizeSp in 12..24)
+        require(columns in 1..2 && opacityPercent.isFinite() && opacityPercent in 0f..100f && textSizeSp.isFinite() && textSizeSp in 12f..24f && dockOpacityPercent.isFinite() && dockOpacityPercent in 0f..100f)
     }
     val needsHardwareDetails: Boolean get() = metrics.any { it in listOf(OverlayMetric.CPU_FREQUENCY,
         OverlayMetric.CPU_TEMPERATURE, OverlayMetric.BATTERY_TEMPERATURE, OverlayMetric.POWER) }
     val needsNetwork: Boolean get() = OverlayMetric.DOWNLOAD in metrics || OverlayMetric.UPLOAD in metrics
 
     companion object {
+        private fun number(value: Any?, fallback: Float, range: ClosedFloatingPointRange<Float>): Float =
+            (value as? Number)?.toFloat()?.takeIf { it.isFinite() }?.coerceIn(range) ?: fallback
         fun decode(values: Map<String, *>): OverlayOptions {
             val defaults = OverlayOptions()
             val selected = (values["overlay_metrics"] as? String)?.split(',')?.mapNotNull { key ->
                 OverlayMetric.entries.firstOrNull { it.name == key }
             }?.distinct()?.takeIf { it.isNotEmpty() } ?: defaults.metrics
             return OverlayOptions(selected, (values["overlay_columns"] as? Int ?: 2).coerceIn(1, 2),
-                (values["overlay_opacity"] as? Int ?: 85).coerceIn(30, 100),
-                (values["overlay_text_size"] as? Int ?: 18).coerceIn(12, 24),
-                values["overlay_edge_snap"] as? Boolean ?: true)
+                number(values["overlay_opacity"], 85f, 0f..100f),
+                number(values["overlay_text_size"], 18f, 12f..24f),
+                values["overlay_edge_snap"] as? Boolean ?: true,
+                number(values["overlay_dock_opacity"], 55f, 0f..100f))
         }
     }
 }

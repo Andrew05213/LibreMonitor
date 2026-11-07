@@ -11,6 +11,28 @@ import org.libremonitor.app.data.privileged.RootSession
 import org.libremonitor.core.*
 
 class PrivilegedSamplingTest {
+    @Test fun slowCadencesReadFreshFpsInsteadOfWaitingFiveOrTenSecondsToConsumeAnExpiredAsyncResult() = runBlocking {
+        for (interval in listOf(2_000L, 5_000L, 10_000L)) {
+            val reader = FakeReader()
+            val poller = FpsPoller(this, { reader.now }) { error("slow cadence must not launch deferred FPS") }
+            val result = readScheduledPrivilegedSample(reader, true, false, true, interval, poller) { reader.now }
+            assertEquals(listOf("fps", "frame"), reader.calls)
+            assertTrue(result.privileged.fpsAt(reader.state.value, reader.now).fps.available)
+            assertEquals(reader.now - reader.frameCost, result.privileged.fps.sampledElapsedRealtimeMillis)
+            poller.reset()
+        }
+    }
+
+    @Test fun fastCadencesPublishNodesWhileFpsIsStillPending() = runBlocking {
+        val reader = FakeReader()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val poller = FpsPoller(this, { reader.now }) { release.await(); FpsPoller.Result(FpsSample()) }
+        val result = readScheduledPrivilegedSample(reader, true, false, true, 100, poller) { reader.now }
+        assertEquals(listOf("frame"), reader.calls)
+        assertNotNull(result.privileged.frame)
+        assertFalse(result.privileged.fps.hasNewReading)
+        poller.reset(); release.complete(Unit); Unit
+    }
     @Test fun unselectedFpsNeverLaunchesACompositorQuery() = runBlocking {
         val reader = FakeReader()
         val result = readPrivilegedSample(reader, false, includeFps = false) { reader.now }

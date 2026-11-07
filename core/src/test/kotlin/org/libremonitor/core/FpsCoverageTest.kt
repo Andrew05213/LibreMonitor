@@ -5,6 +5,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FpsCoverageTest {
+    @Test fun cachedDisplayFpsDoesNotCreateNewRecordedFramesOrFailedQueries() {
+        val session = PerformanceSession(1, "async", 1_000, sampleIntervalMs = 100, sampleCount = 100)
+        val points = (0 until 100).asSequence().map { i -> PerformancePoint(i * 100L, 1_000 + i * 100L,
+            mapOf(PerformanceMetric.FPS to if (i % 10 == 0) Reading(60.0, "fixture")
+                else Reading.unavailable("fixture", FpsSample.NOT_RESAMPLED))) }
+        val review = PerformanceReview.build(session, points)
+        assertEquals(10, review.stats[PerformanceMetric.FPS]!!.validCount)
+        assertEquals(10, review.fpsAttemptCount)
+        assertTrue(review.fpsFailures.isEmpty())
+        assertTrue(review.fpsSummaryAvailable)
+    }
     @Test fun oneValidSampleCannotBecomeAHeadlineGameAverageAndFailuresSurviveReview() {
         val session = PerformanceSession(1, "fixture", 1_000, sampleIntervalMs = 100, sampleCount = 194)
         val review = PerformanceReview.build(session, (0 until 194).asSequence().map { index ->
